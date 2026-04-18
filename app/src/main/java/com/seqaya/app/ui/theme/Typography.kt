@@ -2,6 +2,7 @@ package com.seqaya.app.ui.theme
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -12,6 +13,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.seqaya.app.R
 
+@OptIn(ExperimentalTextApi::class)
 private fun fraunces(opsz: Int, weight: Int = 500) = FontFamily(
     Font(
         R.font.fraunces,
@@ -33,6 +35,7 @@ private fun fraunces(opsz: Int, weight: Int = 500) = FontFamily(
     ),
 )
 
+@OptIn(ExperimentalTextApi::class)
 private fun inter(weight: Int) = FontFamily(
     Font(
         R.font.inter,
@@ -48,6 +51,7 @@ private fun inter(weight: Int) = FontFamily(
     ),
 )
 
+@OptIn(ExperimentalTextApi::class)
 private val MonoFamily = FontFamily(
     Font(
         R.font.jetbrains_mono,
