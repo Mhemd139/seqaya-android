@@ -1,0 +1,37 @@
+# Gradle
+.gradle/
+build/
+*/build/
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.DS_Store
+
+# Kotlin
+*.kotlin_module
+
+# Generated
+app/release/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Keystores and secrets
+*.jks
+*.keystore
+keystore.properties
+google-services.json
+**/src/**/google-services.json
+secrets.properties
+local.secrets
+
+# Logs
+*.log
+
+# Misc
+*.swp
+*.swo
+Thumbs.db
+desktop.ini
