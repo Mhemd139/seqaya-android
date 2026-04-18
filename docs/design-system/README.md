@@ -136,14 +136,60 @@ Extract during implementation — not screens of their own, but called from many
 8. **Hairline dividers at 1dp `border.default`**, vertical margin 14dp. Not `Divider()` with default thickness.
 9. **Dark mode: 5 screens inverted.** Ink ↔ cream, accents lighten slightly. Exact dark-accent hex values TBD in Phase 2 theme implementation.
 
-## Open questions for Phase 2
+## Decisions locked (2026-04-18)
 
-These are design decisions the source bundle doesn't pin down precisely — surface them during Phase 2 theme setup, don't guess:
+The four open questions from the initial import have been resolved against `seqaya-design-prompt.md` (the authoritative design prompt). These are locked — don't re-open them without a new design-review cycle.
 
-1. **Dark-mode sage/terracotta hex values.** Source says "lighten a touch" — need exact values. Probable: sage `#9bac83`, terracotta `#e69074` (to be validated by opening B·02◗ and D·01◗ swatches, or by asking).
-2. **Body text base size.** Source uses 14sp for body; the global CLAUDE.md rule is ≥16sp. Reconcile by treating `bodyLg` (15sp) as "body" baseline and bumping to 16sp, with the 14sp size relegated to `caption`.
-3. **Paper grain implementation.** The SVG `feTurbulence` noise doesn't translate directly to Compose. Options: (a) pre-rendered 180×180 PNG tiled at 35% multiply, (b) a Compose shader, (c) skip on mobile (the grain is more felt than seen at phone scale). Recommend (a) for Phase 2.
-4. **Fraunces variable-axis loading.** Android supports variable fonts from API 26 (min SDK matches). Confirm during Phase 2 whether `FontVariation.Setting("opsz", …)` gives sufficient control; fall back to three static cuts (opsz 14, 72, 144) otherwise.
+### 1. Dark-mode palette — LOCKED
+
+Pinned from [seqaya-design-prompt.md:299–307](source/uploads/seqaya-design-prompt.md):
+
+| Token             | Hex        | Notes                                 |
+| :---------------- | :--------- | :------------------------------------ |
+| bg.cream          | `#1a1917`  | Near-black surface                    |
+| bg.creamLight     | `#25231f`  | Card surface on dark                  |
+| text.primary      | `#faf9f5`  | Inverts to cream                      |
+| text.secondary    | `#b0aea5`  | Same as light-mode tertiary           |
+| accent.green      | `#9eb37f`  | Sage, lightened for contrast          |
+| accent.brown      | `#e89878`  | Terracotta, lightened for contrast    |
+
+Extended values (`creamLightest`, `border.default`, `border.strong`, soft-accent rgbas, `accent.blue` dark) derived by applying the same light-mode relationships to the dark base. See `tokens.json → color.dark`.
+
+### 2. Body text base size — LOCKED at 16sp
+
+The design prompt and the global CLAUDE.md agree: body is 16sp on mobile with 1.55 line-height. My initial tokens treated the HTML's 14sp as body — that was wrong. The HTML uses 14sp for inline helpers inside dense cards. Token scale corrected:
+
+| Token           | Size | Purpose                                           |
+| :-------------- | :--- | :------------------------------------------------ |
+| `body`          | 16sp | Default body copy                                 |
+| `bodySecondary` | 15sp | Dense card interiors where 16sp would wrap badly  |
+| `caption`       | 13sp | Card metadata (last watered, seen)                |
+| `fine`          | 12sp | Legal fine print                                  |
+
+### 3. Paper grain — LOCKED as tiled PNG
+
+The grain is load-bearing: the design forbids flat fills and says it "adds warmth." On Android:
+
+- **Asset:** `app/src/main/res/drawable-nodpi/paper_grain.png` — 180×180 tileable PNG at 2% alpha.
+- **Generation:** pre-render once from the SVG spec (fractalNoise baseFrequency 0.9, numOctaves 2, colorMatrix 0.08/0.08/0.07), rasterize, set alpha to 2%.
+- **Render:** Compose `drawBehind` on the root Scaffold surface using `BitmapShader` with `TileMode.REPEAT` and `BlendMode.Multiply`.
+
+Not a shader, not skipped. The 2% opacity is the spec (`seqaya-design-prompt.md:353`); the HTML's 35% value is a CSS mix-blend artifact, not the intent.
+
+### 4. Fraunces variable font — LOCKED
+
+- **Ship the variable TTF** (`Fraunces[SOFT,WONK,opsz,wght].ttf` + matching italic). Place in `app/src/main/res/font/`.
+- Android 26+ supports variable fonts via `FontVariation.Setting`; min SDK is exactly 26, so no static fallback needed.
+- Active `opsz` values used in the design, per audit:
+  - `14` — inline serif (wordmark)
+  - `24` — hM (20sp headings)
+  - `36` — hL (26sp section titles)
+  - `72` — hXL (34sp page titles) + displayL (48sp card numbers)
+  - `96` — IdentityCard nickname (38sp)
+  - `144` — displayXL (72sp hero number on device detail)
+- Compose: build a `FontFamily` with two files (upright + italic) and set per-style `FontVariation.Setting("opsz", N), FontVariation.Setting("wght", 500)` in `Typography.kt`.
+
+See `tokens.json → typography.fraunces` for the full spec.
 
 ## What NOT to do
 
