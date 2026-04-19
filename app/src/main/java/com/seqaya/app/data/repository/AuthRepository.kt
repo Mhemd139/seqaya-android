@@ -35,7 +35,9 @@ class AuthRepository(
         when (status) {
             is SessionStatus.Initializing -> AuthState.Loading
             is SessionStatus.NotAuthenticated -> AuthState.Unauthenticated
-            is SessionStatus.Authenticated -> AuthState.Authenticated(status.session.user.toDomain())
+            is SessionStatus.Authenticated ->
+                status.session.user?.toDomain()?.let(AuthState::Authenticated)
+                    ?: AuthState.Unauthenticated
             is SessionStatus.RefreshFailure -> AuthState.Error("Session refresh failed. Please sign in again.")
         }
     }

@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.Instant
 import javax.inject.Inject
 
 data class HomeUiState(
@@ -72,13 +71,12 @@ class HomeViewModel @Inject constructor(
         readings: Map<String, Reading>,
     ): List<DeviceWithReading> = devices.map { device ->
         val latest = readings[device.serial]
+        val flatHistory = if (latest != null) List(48) { latest.soilMoisturePercent } else emptyList()
         DeviceWithReading(
             device = device,
             latest = latest,
-            recentMoisture = latest?.let { List(48) { it.soilMoisturePercent } } ?: emptyList(),
-            lastWateredAt = latest?.takeIf { it.isValveOpen }?.recordedAt ?: fallbackWateringInstant(),
+            recentMoisture = flatHistory,
+            lastWateredAt = latest?.takeIf { it.isValveOpen }?.recordedAt,
         )
     }
-
-    private fun fallbackWateringInstant(): Instant? = null
 }
