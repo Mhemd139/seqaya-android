@@ -1,0 +1,15 @@
+# Copy this file to `local.properties` and fill in the values below.
+# `local.properties` is gitignored and must never be committed.
+
+# Supabase — project `jybsouuydgstafqsxfbx` (name: Seqaya, region: ap-northeast-1).
+# Get these from https://supabase.com/dashboard/project/jybsouuydgstafqsxfbx/settings/api
+SUPABASE_URL=https://jybsouuydgstafqsxfbx.supabase.co
+SUPABASE_ANON_KEY=
+
+# Google Sign-In — the OAuth 2.0 "Web application" client ID from Google Cloud Console.
+# NOT the Android client ID. CredentialManager uses the web client ID as the server client.
+# Setup: https://supabase.com/docs/guides/auth/social-login/auth-google#configuration-android
+GOOGLE_WEB_CLIENT_ID=
+
+# Android SDK path (standard local.properties entry — Android Studio writes this automatically).
+sdk.dir=

@@ -1,26 +1,58 @@
 package com.seqaya.app.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.seqaya.app.domain.model.AuthState
 import com.seqaya.app.ui.components.PaperGrain
-import com.seqaya.app.ui.home.HomePlaceholderScreen
+import com.seqaya.app.ui.home.HomeScreen
 import com.seqaya.app.ui.navigation.SeqayaBottomBar
 import com.seqaya.app.ui.navigation.TopLevelDestination
 import com.seqaya.app.ui.plants.LibraryPlaceholderScreen
 import com.seqaya.app.ui.scan.ScanPlaceholderScreen
+import com.seqaya.app.ui.signin.SignInScreen
 import com.seqaya.app.ui.theme.Seqaya
 
 @Composable
-fun SeqayaRoot() {
+fun SeqayaRoot(
+    viewModel: AppRootViewModel = hiltViewModel(),
+) {
+    val authState by viewModel.authState.collectAsState()
+    when (authState) {
+        AuthState.Loading -> EdgeToEdgeSurface {}
+        AuthState.Unauthenticated, is AuthState.Error -> EdgeToEdgeSurface {
+            Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                SignInScreen()
+            }
+        }
+        is AuthState.Authenticated -> SignedInRoot()
+    }
+}
+
+@Composable
+private fun EdgeToEdgeSurface(content: @Composable () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        PaperGrain(modifier = Modifier.fillMaxSize())
+        content()
+    }
+}
+
+@Composable
+private fun SignedInRoot() {
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val current = TopLevelDestination.entries
@@ -34,16 +66,17 @@ fun SeqayaRoot() {
             SeqayaBottomBar(
                 current = current,
                 onSelect = { dest ->
-                    if (dest.route != current.route) {
-                        navController.navigate(dest.route) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+                    if (dest.route == current.route) return@SeqayaBottomBar
+                    navController.navigate(dest.route) {
+                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
                     }
                 },
+                modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars),
             )
         },
+        contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             PaperGrain(modifier = Modifier.fillMaxSize())
@@ -52,7 +85,7 @@ fun SeqayaRoot() {
                 startDestination = TopLevelDestination.Home.route,
                 modifier = Modifier.fillMaxSize(),
             ) {
-                composable(TopLevelDestination.Home.route) { HomePlaceholderScreen() }
+                composable(TopLevelDestination.Home.route) { HomeScreen() }
                 composable(TopLevelDestination.Scan.route) { ScanPlaceholderScreen() }
                 composable(TopLevelDestination.Library.route) { LibraryPlaceholderScreen() }
             }

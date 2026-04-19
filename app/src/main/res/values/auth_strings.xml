@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sign_in_title_line_1">Care,</string>
+    <string name="sign_in_title_line_2">quietly.</string>
+    <string name="sign_in_lede">Seqaya keeps your plants watered while you live your life.</string>
+    <string name="sign_in_button">Continue with Google</string>
+    <string name="sign_in_legal">By continuing you agree to our Terms and Privacy.</string>
+    <string name="sign_in_footer">Made for the windowsill, not the warehouse.</string>
+    <string name="sign_in_error_dismiss">Dismiss</string>
+    <string name="google_g_content_description">Google logo</string>
+</resources>
