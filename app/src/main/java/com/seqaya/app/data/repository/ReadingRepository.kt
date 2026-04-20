@@ -13,6 +13,9 @@ import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -24,6 +27,7 @@ private val READING_COLUMNS = Columns.list(
     "id", "device_serial", "soil_moisture_percent",
     "is_valve_open", "is_watering_paused", "recorded_at",
 )
+private val realtimeJson = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
 class ReadingRepository(
     private val supabase: SupabaseClient,
@@ -37,18 +41,25 @@ class ReadingRepository(
 
     suspend fun refreshLatestFor(serials: List<String>, perDeviceLimit: Int = 48): Result<Unit> = runCatching {
         if (serials.isEmpty()) return@runCatching
-        val remote = supabase.from("device_readings")
-            .select(columns = READING_COLUMNS) {
-                filter { isIn("device_serial", serials) }
-                order("recorded_at", Order.DESCENDING)
-                limit((serials.size * perDeviceLimit).toLong())
-            }
-            .decodeList<DeviceReadingDto>()
+        val remote = coroutineScope {
+            serials.map { serial ->
+                async {
+                    supabase.from("device_readings")
+                        .select(columns = READING_COLUMNS) {
+                            filter { eq("device_serial", serial) }
+                            order("recorded_at", Order.DESCENDING)
+                            limit(perDeviceLimit.toLong())
+                        }
+                        .decodeList<DeviceReadingDto>()
+                }
+            }.awaitAll().flatten()
+        }
         dao.upsertAll(remote.map { it.toEntity() })
     }.onFailure { Log.e(TAG, "Refresh readings failed", it) }
 
     fun subscribe(scope: CoroutineScope, serials: List<String>) {
         if (serials.isEmpty()) return
+        val allowed = serials.toHashSet()
         val channel = supabase.channel("device_readings:${serials.joinToString(",")}")
         val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = "device_readings"
@@ -56,8 +67,8 @@ class ReadingRepository(
         scope.launch {
             changes.collect { action ->
                 when (action) {
-                    is PostgresAction.Insert -> persist(action.record)
-                    is PostgresAction.Update -> persist(action.record)
+                    is PostgresAction.Insert -> persist(action.record, allowed)
+                    is PostgresAction.Update -> persist(action.record, allowed)
                     else -> Unit
                 }
             }
@@ -65,14 +76,14 @@ class ReadingRepository(
         scope.launch { runCatching { channel.subscribe(blockUntilSubscribed = true) } }
     }
 
-    private suspend fun persist(record: kotlinx.serialization.json.JsonObject) {
+    private suspend fun persist(record: kotlinx.serialization.json.JsonObject, allowed: Set<String>) {
         val dto = runCatching {
-            Json { ignoreUnknownKeys = true; coerceInputValues = true }
-                .decodeFromJsonElement(DeviceReadingDto.serializer(), record)
+            realtimeJson.decodeFromJsonElement(DeviceReadingDto.serializer(), record)
         }.getOrElse {
             Log.w(TAG, "Failed to decode realtime reading", it)
             return
         }
+        if (dto.deviceSerial !in allowed) return
         dao.upsertAll(listOf(dto.toEntity()))
     }
 
@@ -89,6 +100,6 @@ class ReadingRepository(
         soilMoisturePercent = soilMoisturePercent,
         isValveOpen = isValveOpen,
         isWateringPaused = isWateringPaused ?: false,
-        recordedAtEpochMs = recordedAt?.let { Instant.parse(it).toEpochMilli() } ?: 0L,
+        recordedAtEpochMs = Instant.parse(recordedAt).toEpochMilli(),
     )
 }

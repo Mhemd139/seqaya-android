@@ -20,6 +20,10 @@ interface DeviceDao {
 
     @Transaction
     suspend fun replaceAll(devices: List<DeviceEntity>) {
+        if (devices.isEmpty()) {
+            clear()
+            return
+        }
         upsertAll(devices)
         deleteNotIn(devices.map { it.id })
     }

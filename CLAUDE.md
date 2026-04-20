@@ -82,7 +82,7 @@ The AID is `F2 23 34 45 56 67`. APDU chunks are 10 bytes. Provisioning payload: 
 **Never change the protocol without also changing it in `C:\Dev\Seqaya\Firmware`.**
 
 ### Supabase
-- Project: `jybsouuydgstafqsxfbx` (region: europe-west1, existing).
+- Project: `jybsouuydgstafqsxfbx` (region: ap-northeast-1 / Tokyo, existing).
 - Tables: `profiles`, `plants`, `devices`, `device_readings` (existing — firmware writes).
 - RLS: user owns their devices via `owner_id = auth.uid()`.
 - Never `SELECT *`. Name every column in every query.

@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -52,6 +53,9 @@ fun HomeScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(Seqaya.colors.bgCream)) {
         if (state.isOffline) OfflineBanner()
+        state.error?.let { message ->
+            ErrorBanner(message = message, onDismiss = viewModel::dismissError)
+        }
 
         HomeTopBar(
             showPlus = !state.isEmpty,
@@ -63,6 +67,28 @@ fun HomeScreen(
             state.isEmpty -> HomeEmpty(onAdd = showComingSoon, onLibrary = showComingSoon)
             else -> HomePopulated(state = state, onReviewThirsty = showComingSoon)
         }
+    }
+}
+
+@Composable
+private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Seqaya.colors.accentBrownSoft)
+            .clickable(onClick = onDismiss)
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = message,
+            style = Seqaya.type.caption.copy(color = Seqaya.colors.accentBrownInk, fontSize = 12.5.sp),
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = "Dismiss",
+            style = Seqaya.type.labelCaps.copy(color = Seqaya.colors.accentBrownInk),
+        )
     }
 }
 
@@ -80,6 +106,7 @@ private fun HomeTopBar(showPlus: Boolean, onAddClick: () -> Unit) {
             modifier = Modifier.weight(1f),
         )
         if (showPlus) {
+            val addDescription = stringResource(R.string.home_top_add_content_description)
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -87,7 +114,7 @@ private fun HomeTopBar(showPlus: Boolean, onAddClick: () -> Unit) {
                     .clickable(onClick = onAddClick)
                     .semantics {
                         role = Role.Button
-                        contentDescription = "Add a device"
+                        contentDescription = addDescription
                     },
                 contentAlignment = Alignment.Center,
             ) {
@@ -107,12 +134,13 @@ private fun HomeTopBar(showPlus: Boolean, onAddClick: () -> Unit) {
 
 @Composable
 private fun Avatar(letter: String) {
+    val avatarDescription = stringResource(R.string.home_avatar_content_description)
     Box(
         modifier = Modifier
             .size(30.dp)
             .clip(CircleShape)
             .background(Seqaya.colors.accentGreen)
-            .semantics { contentDescription = "Your profile" },
+            .semantics { contentDescription = avatarDescription },
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -148,7 +176,12 @@ private fun HomeEmpty(onAdd: () -> Unit, onLibrary: () -> Unit) {
         Spacer(Modifier.height(14.dp))
         Text(
             text = stringResource(R.string.home_empty_secondary),
-            style = Seqaya.type.caption.copy(color = Seqaya.colors.accentBrown, fontSize = 13.sp),
+            style = Seqaya.type.caption.copy(
+                color = Seqaya.colors.accentBrown,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                textDecoration = TextDecoration.Underline,
+            ),
             modifier = Modifier
                 .clickable(onClick = onLibrary)
                 .padding(vertical = 4.dp),
@@ -186,7 +219,7 @@ private fun PrimaryButton(label: String, onClick: () -> Unit) {
         modifier = Modifier
             .height(52.dp)
             .clip(Seqaya.shapes.button)
-            .background(Seqaya.colors.accentBrown)
+            .background(Seqaya.colors.accentGreen)
             .clickable(onClick = onClick)
             .padding(horizontal = 20.dp),
         contentAlignment = Alignment.Center,

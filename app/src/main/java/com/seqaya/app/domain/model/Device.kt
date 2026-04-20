@@ -33,5 +33,5 @@ data class DeviceWithReading(
     val needsAttention: Boolean
         get() = latest != null &&
             device.targetMoisturePercent != null &&
-            latest.soilMoisturePercent < device.targetMoisturePercent - 10
+            latest.soilMoisturePercent <= device.targetMoisturePercent - 10
 }

@@ -17,22 +17,17 @@ class ConnectivityObserver(context: Context) {
     private val manager = context.getSystemService(ConnectivityManager::class.java)
 
     val isOnline: Flow<Boolean> = callbackFlow {
+        val emit: () -> Unit = { trySend(currentlyOnline()) }
         val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                trySend(true)
-            }
-            override fun onLost(network: Network) {
-                trySend(false)
-            }
-            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                trySend(capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED))
-            }
+            override fun onAvailable(network: Network) = emit()
+            override fun onLost(network: Network) = emit()
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) = emit()
         }
         val request = NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build()
         manager.registerNetworkCallback(request, callback)
-        trySend(currentlyOnline())
+        emit()
         awaitClose { manager.unregisterNetworkCallback(callback) }
     }.distinctUntilChanged()
 

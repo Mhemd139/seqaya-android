@@ -4,7 +4,7 @@ import java.time.Duration
 import java.time.Instant
 
 fun relativeTime(instant: Instant, now: Instant = Instant.now()): String {
-    val minutes = Duration.between(instant, now).toMinutes()
+    val minutes = Duration.between(instant, now).toMinutes().coerceAtLeast(0L)
     return when {
         minutes < 1L -> "just now"
         minutes < 60L -> "${minutes}m ago"

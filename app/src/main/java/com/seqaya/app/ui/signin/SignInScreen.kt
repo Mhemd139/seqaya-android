@@ -137,7 +137,7 @@ private fun GoogleButton(inFlight: Boolean, onClick: () -> Unit) {
             .fillMaxWidth()
             .height(52.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(Seqaya.colors.accentBrown)
+            .background(Seqaya.colors.accentGreen)
             .clickable(
                 interactionSource = interaction,
                 indication = null,

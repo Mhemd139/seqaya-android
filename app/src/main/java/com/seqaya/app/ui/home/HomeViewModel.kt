@@ -10,6 +10,7 @@ import com.seqaya.app.domain.model.DeviceWithReading
 import com.seqaya.app.domain.model.Reading
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -25,6 +26,7 @@ data class HomeUiState(
     val isLoading: Boolean = true,
     val isOffline: Boolean = false,
     val devices: List<DeviceWithReading> = emptyList(),
+    val error: String? = null,
 ) {
     val isEmpty: Boolean get() = !isLoading && devices.isEmpty()
     val thirstyDevice: DeviceWithReading? get() = devices.firstOrNull { it.needsAttention }
@@ -38,17 +40,21 @@ class HomeViewModel @Inject constructor(
     connectivity: ConnectivityObserver,
 ) : ViewModel() {
 
+    private val errorFlow = MutableStateFlow<String?>(null)
+
     val state: StateFlow<HomeUiState> = combine(
         deviceRepository.observeDevices().debounce(100L).distinctUntilChanged(),
         readingRepository.observeLatest()
             .map { list -> list.associateBy { it.deviceSerial } }
             .distinctUntilChanged(),
         connectivity.isOnline,
-    ) { devices, readingsBySerial, online ->
+        errorFlow,
+    ) { devices, readingsBySerial, online, error ->
         HomeUiState(
             isLoading = false,
             isOffline = !online,
             devices = merge(devices, readingsBySerial),
+            error = error,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -58,12 +64,16 @@ class HomeViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            deviceRepository.refresh()
+            deviceRepository.refresh().onFailure { errorFlow.value = "Couldn't reach the cloud. Showing the last state we know." }
             val serials = deviceRepository.observeDevices().first().map { it.serial }
             if (serials.isEmpty()) return@launch
-            readingRepository.refreshLatestFor(serials)
+            readingRepository.refreshLatestFor(serials).onFailure { errorFlow.value = "Couldn't refresh moisture data." }
             readingRepository.subscribe(viewModelScope, serials)
         }
+    }
+
+    fun dismissError() {
+        errorFlow.value = null
     }
 
     private fun merge(
