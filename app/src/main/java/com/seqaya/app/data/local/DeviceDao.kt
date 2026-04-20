@@ -63,6 +63,7 @@ interface ReadingDao {
         FROM readings
         WHERE deviceSerial = :serial AND recordedAtEpochMs >= :sinceEpochMs
         ORDER BY recordedAtEpochMs ASC
+        LIMIT 2000
         """
     )
     fun observeRecent(serial: String, sinceEpochMs: Long): Flow<List<ReadingEntity>>

@@ -10,14 +10,15 @@ import com.seqaya.app.domain.model.Reading
 import com.seqaya.app.domain.wateringEvents
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -40,6 +41,11 @@ data class DeviceDetailUiState(
     }
 }
 
+sealed interface DeviceDetailEvent {
+    data object Renamed : DeviceDetailEvent
+    data object TargetUpdated : DeviceDetailEvent
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class DeviceDetailViewModel @Inject constructor(
@@ -52,10 +58,14 @@ class DeviceDetailViewModel @Inject constructor(
     private val rangeFlow = MutableStateFlow(ChartRange.DAYS_30)
     private val errorFlow = MutableStateFlow<String?>(null)
     private val navigateBackFlow = MutableStateFlow(false)
+    private val eventsChannel = Channel<DeviceDetailEvent>(Channel.BUFFERED)
+
+    val events = eventsChannel.receiveAsFlow()
 
     private val deviceFlow = deviceRepository.observeDevices()
         .map { list -> list.firstOrNull { it.serial == serial } }
         .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val readingsFlow = rangeFlow.flatMapLatest { range ->
         readingRepository.observeRecent(serial, DeviceDetailUiState.windowStart(range))
@@ -82,28 +92,41 @@ class DeviceDetailViewModel @Inject constructor(
         initialValue = DeviceDetailUiState(),
     )
 
+    init {
+        viewModelScope.launch {
+            rangeFlow.collect { range ->
+                readingRepository.refreshWindow(serial, DeviceDetailUiState.windowStart(range))
+                    .onFailure { errorFlow.value = "Couldn't refresh moisture data." }
+            }
+        }
+    }
+
     fun setRange(range: ChartRange) {
         rangeFlow.value = range
     }
 
     fun renameDevice(nickname: String) {
-        val id = state.value.device?.id ?: return
+        val trimmed = nickname.trim()
+        if (trimmed.isEmpty()) return
+        val id = deviceFlow.value?.id ?: return
         viewModelScope.launch {
-            deviceRepository.updateNickname(id, nickname)
+            deviceRepository.updateNickname(id, trimmed)
+                .onSuccess { eventsChannel.trySend(DeviceDetailEvent.Renamed) }
                 .onFailure { errorFlow.value = "Couldn't rename device." }
         }
     }
 
     fun updateTarget(percent: Int) {
-        val id = state.value.device?.id ?: return
+        val id = deviceFlow.value?.id ?: return
         viewModelScope.launch {
             deviceRepository.updateTarget(id, percent)
+                .onSuccess { eventsChannel.trySend(DeviceDetailEvent.TargetUpdated) }
                 .onFailure { errorFlow.value = "Couldn't update target." }
         }
     }
 
     fun deleteDevice() {
-        val id = state.value.device?.id ?: return
+        val id = deviceFlow.value?.id ?: return
         viewModelScope.launch {
             deviceRepository.delete(id)
                 .onSuccess { navigateBackFlow.value = true }

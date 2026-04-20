@@ -23,9 +23,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
@@ -35,12 +37,14 @@ import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.common.fill
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
+import com.patrykandpatrick.vico.core.cartesian.data.CartesianLayerRangeProvider
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.core.cartesian.decoration.HorizontalLine
 import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
 import com.patrykandpatrick.vico.core.common.Fill
 import com.patrykandpatrick.vico.core.common.component.LineComponent
 import com.patrykandpatrick.vico.core.common.shape.DashedShape
+import com.seqaya.app.R
 import com.seqaya.app.ui.theme.Seqaya
 import java.time.Duration
 import java.time.Instant
@@ -48,6 +52,9 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 data class MoisturePoint(val timestamp: Instant, val percent: Int)
+
+private const val Y_AXIS_MIN = 0.0
+private const val Y_AXIS_MAX = 100.0
 
 @Composable
 fun MoistureChart(
@@ -58,13 +65,13 @@ fun MoistureChart(
 ) {
     val colors = Seqaya.colors
 
-    if (points.isEmpty()) {
+    if (points.size < 2) {
         Box(
             modifier = modifier.height(180.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "Waiting for the first reading…",
+                text = stringResource(R.string.device_empty_chart),
                 color = colors.textTertiary,
                 style = Seqaya.type.body.copy(fontSize = 14.sp),
             )
@@ -74,7 +81,9 @@ fun MoistureChart(
 
     val modelProducer = remember { CartesianChartModelProducer() }
     val accentGreen = colors.accentGreen
+    val accentBrown = colors.accentBrown
     val borderColor = colors.border
+    val pointCount = points.size
 
     LaunchedEffect(points) {
         modelProducer.runTransaction {
@@ -88,37 +97,39 @@ fun MoistureChart(
         areaFill = null,
     )
 
+    val rangeProvider = remember { CartesianLayerRangeProvider.fixed(minY = Y_AXIS_MIN, maxY = Y_AXIS_MAX) }
+
     val targetDecoration = remember(targetPercent, borderColor) {
-        if (targetPercent == null) {
-            emptyList()
-        } else {
-            listOf(
-                HorizontalLine(
-                    y = { targetPercent.toDouble() },
-                    line = LineComponent(
-                        fill = Fill(borderColor.toArgb()),
-                        thicknessDp = 1f,
-                        shape = DashedShape(
-                            dashLengthDp = 4f,
-                            gapLengthDp = 4f,
-                        ),
-                    ),
-                )
+        if (targetPercent == null) emptyList() else listOf(
+            HorizontalLine(
+                y = { targetPercent.toDouble() },
+                line = LineComponent(
+                    fill = Fill(borderColor.toArgb()),
+                    thicknessDp = 1f,
+                    shape = DashedShape(dashLengthDp = 4f, gapLengthDp = 4f),
+                ),
             )
-        }
+        )
     }
 
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
-    var chartSizePx by remember { mutableStateOf(IntOffset.Zero) }
+    var chartSizePx by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current
     val dotRadiusPx = with(density) { 2.8.dp.toPx() }
     val now = remember(points) { Instant.now() }
 
-    Box(modifier = modifier.height(180.dp)) {
+    LaunchedEffect(points) { selectedIndex = null }
+
+    Box(
+        modifier = modifier
+            .height(180.dp)
+            .onSizeChanged { chartSizePx = it },
+    ) {
         CartesianChartHost(
             chart = rememberCartesianChart(
                 rememberLineCartesianLayer(
                     lineProvider = LineCartesianLayer.LineProvider.series(line),
+                    rangeProvider = rangeProvider,
                 ),
                 decorations = targetDecoration,
             ),
@@ -127,66 +138,52 @@ fun MoistureChart(
             scrollState = rememberVicoScrollState(scrollEnabled = false),
         )
 
-        // Watering dots + tap-to-inspect overlay.
-        // Positions are approximate — linearly interpolated across the chart width
-        // based on each point's index within the series. This matches Vico's default
-        // layout for evenly-spaced series.
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(points) {
+                .pointerInput(pointCount) {
                     detectTapGestures { offset ->
                         val w = size.width.toFloat()
-                        if (w <= 0f || points.size < 2) return@detectTapGestures
-                        val step = w / (points.size - 1)
-                        val nearest = (offset.x / step).roundToInt().coerceIn(0, points.size - 1)
+                        if (w <= 0f) return@detectTapGestures
+                        val step = w / (pointCount - 1)
+                        val nearest = (offset.x / step).roundToInt().coerceIn(0, pointCount - 1)
                         val dx = offset.x - nearest * step
                         selectedIndex = if (abs(dx) <= step / 2f) nearest else null
                     }
                 },
         ) {
-            chartSizePx = IntOffset(size.width.roundToInt(), size.height.roundToInt())
-            if (points.size < 2 || wateringEvents.isEmpty()) return@Canvas
+            if (wateringEvents.isEmpty()) return@Canvas
 
             val w = size.width
             val h = size.height
-            val step = w / (points.size - 1)
+            val step = w / (pointCount - 1)
             val minTs = points.first().timestamp
             val maxTs = points.last().timestamp
             val totalMs = Duration.between(minTs, maxTs).toMillis().coerceAtLeast(1L)
 
             wateringEvents.forEach { event ->
-                if (event < minTs || event > maxTs) return@forEach
+                if (event.isBefore(minTs) || event.isAfter(maxTs)) return@forEach
                 val ratio = Duration.between(minTs, event).toMillis().toDouble() / totalMs
-                val fractionalIndex = ratio * (points.size - 1)
-                val x = (fractionalIndex * step).toFloat()
-
-                // Use the y of the nearest data point for vertical placement (approximate).
-                val idx = fractionalIndex.roundToInt().coerceIn(0, points.size - 1)
-                val percent = points[idx].percent.toDouble()
-                val minY = points.minOf { it.percent }.toDouble()
-                val maxY = points.maxOf { it.percent }.toDouble()
-                val yRange = (maxY - minY).coerceAtLeast(1.0)
-                val y = (h - ((percent - minY) / yRange).toFloat() * h)
-
-                drawCircle(
-                    color = colors.accentBrown,
-                    radius = dotRadiusPx,
-                    center = Offset(x, y),
-                )
+                val idx = (ratio * (pointCount - 1)).roundToInt().coerceIn(0, pointCount - 1)
+                val x = idx * step
+                val y = (h - ((points[idx].percent - Y_AXIS_MIN) / (Y_AXIS_MAX - Y_AXIS_MIN)).toFloat() * h)
+                drawCircle(color = accentBrown, radius = dotRadiusPx, center = Offset(x, y))
             }
         }
 
         val sel = selectedIndex
-        if (sel != null && chartSizePx.x > 0) {
+        if (sel != null && chartSizePx.width > 0 && sel in points.indices) {
             val point = points[sel]
-            val step = chartSizePx.x.toFloat() / (points.size - 1).coerceAtLeast(1)
+            val step = chartSizePx.width.toFloat() / (pointCount - 1).coerceAtLeast(1)
             val xPx = (sel * step).roundToInt()
-            val labelOffsetDp = with(density) { xPx.toDp() }
+            val labelWidthDp = 88.dp
+            val rawX = with(density) { xPx.toDp() } - labelWidthDp / 2
+            val maxX = with(density) { chartSizePx.width.toDp() } - labelWidthDp
+            val clampedX = rawX.coerceIn(0.dp, maxX.coerceAtLeast(0.dp))
 
             Box(
                 modifier = Modifier
-                    .offset(x = labelOffsetDp - 40.dp, y = 4.dp)
+                    .offset(x = clampedX, y = 4.dp)
                     .clip(RoundedCornerShape(6.dp))
                     .background(colors.bgCreamLightest)
                     .border(1.dp, colors.border, RoundedCornerShape(6.dp))
@@ -203,7 +200,7 @@ fun MoistureChart(
 }
 
 private fun formatRelative(ts: Instant, now: Instant): String {
-    val minutes = Duration.between(ts, now).toMinutes()
+    val minutes = Duration.between(ts, now).toMinutes().coerceAtLeast(0L)
     return when {
         minutes < 1 -> "now"
         minutes < 60 -> "${minutes}m ago"
