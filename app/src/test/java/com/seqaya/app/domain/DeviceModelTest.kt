@@ -42,10 +42,11 @@ class DeviceModelTest {
         assertEquals("1", with(null, null, "1").displayName)
     }
 
-    @Test fun `needsAttention triggers only when moisture more than 10 below target`() {
+    @Test fun `needsAttention triggers when moisture is 10 or more below target`() {
         val d = device(target = 60)
         assertFalse(DeviceWithReading(d, reading(55), emptyList(), null).needsAttention)
-        assertFalse(DeviceWithReading(d, reading(50), emptyList(), null).needsAttention)
+        assertFalse(DeviceWithReading(d, reading(51), emptyList(), null).needsAttention)
+        assertTrue(DeviceWithReading(d, reading(50), emptyList(), null).needsAttention)
         assertTrue(DeviceWithReading(d, reading(49), emptyList(), null).needsAttention)
     }
 
