@@ -57,6 +57,21 @@ class ReadingRepository(
         dao.upsertAll(remote.map { it.toEntity() })
     }.onFailure { Log.e(TAG, "Refresh readings failed", it) }
 
+    suspend fun refreshWindow(serial: String, sinceEpochMs: Long, maxRows: Long = 2000L): Result<Unit> = runCatching {
+        val sinceIso = Instant.ofEpochMilli(sinceEpochMs).toString()
+        val remote = supabase.from("device_readings")
+            .select(columns = READING_COLUMNS) {
+                filter {
+                    eq("device_serial", serial)
+                    gte("recorded_at", sinceIso)
+                }
+                order("recorded_at", Order.DESCENDING)
+                limit(maxRows)
+            }
+            .decodeList<DeviceReadingDto>()
+        dao.upsertAll(remote.map { it.toEntity() })
+    }.onFailure { Log.e(TAG, "Refresh window failed", it) }
+
     fun subscribe(scope: CoroutineScope, serials: List<String>) {
         if (serials.isEmpty()) return
         val allowed = serials.toHashSet()

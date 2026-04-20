@@ -38,6 +38,23 @@ class DeviceRepository(
         dao.clear()
     }
 
+    suspend fun delete(id: String): Result<Unit> = runCatching {
+        supabase.from("devices").delete { filter { eq("id", id) } }
+        dao.deleteById(id)
+    }.onFailure { Log.e(TAG, "Delete device failed", it) }
+
+    suspend fun updateNickname(id: String, nickname: String): Result<Unit> = runCatching {
+        val value = nickname.trim().ifEmpty { null }
+        supabase.from("devices").update({ set("nickname", value) }) { filter { eq("id", id) } }
+        dao.updateNickname(id, value)
+    }.onFailure { Log.e(TAG, "Update nickname failed", it) }
+
+    suspend fun updateTarget(id: String, percent: Int): Result<Unit> = runCatching {
+        val clamped = percent.coerceIn(10, 90)
+        supabase.from("devices").update({ set("target_moisture_percent", clamped) }) { filter { eq("id", id) } }
+        dao.updateTarget(id, clamped)
+    }.onFailure { Log.e(TAG, "Update target failed", it) }
+
     private fun DeviceEntity.toDomain(): Device = Device(
         id = id,
         serial = serial,

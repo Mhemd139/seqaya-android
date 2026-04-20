@@ -13,12 +13,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.seqaya.app.domain.model.AuthState
 import com.seqaya.app.ui.components.PaperGrain
+import com.seqaya.app.ui.device.DeviceDetailScreen
 import com.seqaya.app.ui.home.HomeScreen
 import com.seqaya.app.ui.navigation.SeqayaBottomBar
 import com.seqaya.app.ui.navigation.TopLevelDestination
@@ -85,9 +88,19 @@ private fun SignedInRoot() {
                 startDestination = TopLevelDestination.Home.route,
                 modifier = Modifier.fillMaxSize(),
             ) {
-                composable(TopLevelDestination.Home.route) { HomeScreen() }
+                composable(TopLevelDestination.Home.route) {
+                    HomeScreen(onDeviceClick = { serial ->
+                        navController.navigate("device/$serial")
+                    })
+                }
                 composable(TopLevelDestination.Scan.route) { ScanPlaceholderScreen() }
                 composable(TopLevelDestination.Library.route) { LibraryPlaceholderScreen() }
+                composable(
+                    route = "device/{serial}",
+                    arguments = listOf(navArgument("serial") { type = NavType.StringType }),
+                ) {
+                    DeviceDetailScreen(onBack = { navController.popBackStack() })
+                }
             }
         }
     }

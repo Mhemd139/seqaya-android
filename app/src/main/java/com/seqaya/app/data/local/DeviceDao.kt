@@ -33,6 +33,15 @@ interface DeviceDao {
 
     @Query("DELETE FROM devices")
     suspend fun clear()
+
+    @Query("DELETE FROM devices WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("UPDATE devices SET nickname = :nickname WHERE id = :id")
+    suspend fun updateNickname(id: String, nickname: String?)
+
+    @Query("UPDATE devices SET targetMoisturePercent = :target WHERE id = :id")
+    suspend fun updateTarget(id: String, target: Int?)
 }
 
 @Dao
@@ -54,6 +63,7 @@ interface ReadingDao {
         FROM readings
         WHERE deviceSerial = :serial AND recordedAtEpochMs >= :sinceEpochMs
         ORDER BY recordedAtEpochMs ASC
+        LIMIT 2000
         """
     )
     fun observeRecent(serial: String, sinceEpochMs: Long): Flow<List<ReadingEntity>>

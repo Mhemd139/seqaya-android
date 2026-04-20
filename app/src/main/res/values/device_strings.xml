@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="device_back_content_description">Back</string>
+    <string name="device_info_heading">Device</string>
+    <string name="device_info_serial">Serial</string>
+    <string name="device_info_plant">Plant</string>
+    <string name="device_info_nickname">Nickname</string>
+    <string name="device_info_target">Target moisture</string>
+    <string name="device_info_last_seen">Last seen</string>
+    <string name="device_info_none">—</string>
+    <string name="device_delete">Delete device</string>
+    <string name="device_delete_confirm_title">Remove %1$s?</string>
+    <string name="device_delete_confirm_body">The device will be unpaired and its history deleted. This can\u2019t be undone.</string>
+    <string name="device_delete_confirm_action">Remove</string>
+    <string name="device_delete_toast">Removed.</string>
+    <string name="device_rename_toast">Renamed.</string>
+    <string name="device_target_toast">Target updated.</string>
+    <string name="device_empty_chart">Waiting for the first reading\u2026</string>
+    <string name="device_state_thriving">Thriving</string>
+    <string name="device_state_thirsty">Thirsty</string>
+    <string name="device_state_unknown">Awaiting data</string>
+    <string name="device_target_label">Target %1$d%%</string>
+    <string name="cancel">Cancel</string>
+</resources>
