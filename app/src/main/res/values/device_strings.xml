@@ -18,6 +18,7 @@
     <string name="device_empty_chart">Waiting for the first reading\u2026</string>
     <string name="device_state_thriving">Thriving</string>
     <string name="device_state_thirsty">Thirsty</string>
+    <string name="device_state_unknown">Awaiting data</string>
     <string name="device_target_label">Target %1$d%%</string>
     <string name="cancel">Cancel</string>
 </resources>

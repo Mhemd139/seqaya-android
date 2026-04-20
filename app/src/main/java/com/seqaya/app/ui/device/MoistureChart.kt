@@ -6,7 +6,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -67,7 +66,7 @@ fun MoistureChart(
 
     if (points.size < 2) {
         Box(
-            modifier = modifier.height(180.dp),
+            modifier = modifier,
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -122,7 +121,6 @@ fun MoistureChart(
 
     Box(
         modifier = modifier
-            .height(180.dp)
             .onSizeChanged { chartSizePx = it },
     ) {
         CartesianChartHost(

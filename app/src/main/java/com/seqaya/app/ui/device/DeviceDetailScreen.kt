@@ -78,6 +78,9 @@ fun DeviceDetailScreen(
     var showTargetDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(Seqaya.colors.bgCream)) {
+        state.error?.let { message ->
+            DetailErrorBanner(message = message, onDismiss = viewModel::dismissError)
+        }
         DeviceTopBar(
             title = state.device?.nickname ?: state.device?.serial ?: "",
             onBack = onBack,
@@ -93,7 +96,7 @@ fun DeviceDetailScreen(
                 scientific = state.device?.plantScientificName,
                 percent = state.latestPercent,
                 target = state.device?.targetMoisturePercent,
-                thirsty = derivedThirsty(state.latestPercent, state.device?.targetMoisturePercent),
+                thirsty = computeThirsty(state.latestPercent, state.device?.targetMoisturePercent),
             )
 
             Spacer(Modifier.height(22.dp))
@@ -196,7 +199,7 @@ private fun DeviceTopBar(title: String, onBack: () -> Unit) {
 }
 
 @Composable
-private fun DeviceHero(scientific: String?, percent: Int?, target: Int?, thirsty: Boolean) {
+private fun DeviceHero(scientific: String?, percent: Int?, target: Int?, thirsty: Boolean?) {
     scientific?.let {
         Text(
             text = it,
@@ -236,11 +239,31 @@ private fun DeviceHero(scientific: String?, percent: Int?, target: Int?, thirsty
 }
 
 @Composable
-private fun StateChip(thirsty: Boolean) {
-    val color = if (thirsty) Seqaya.colors.accentBrown else Seqaya.colors.accentGreen
-    val softBg = if (thirsty) Seqaya.colors.accentBrownSoft else Seqaya.colors.accentGreenSoft
-    val ink = if (thirsty) Seqaya.colors.accentBrownInk else Seqaya.colors.accentGreenInk
-    val label = stringResource(if (thirsty) R.string.device_state_thirsty else R.string.device_state_thriving)
+private fun StateChip(thirsty: Boolean?) {
+    val color: androidx.compose.ui.graphics.Color
+    val softBg: androidx.compose.ui.graphics.Color
+    val ink: androidx.compose.ui.graphics.Color
+    val label: String
+    when (thirsty) {
+        null -> {
+            color = Seqaya.colors.textTertiary
+            softBg = Seqaya.colors.bgCreamLightest
+            ink = Seqaya.colors.textSecondary
+            label = stringResource(R.string.device_state_unknown)
+        }
+        true -> {
+            color = Seqaya.colors.accentBrown
+            softBg = Seqaya.colors.accentBrownSoft
+            ink = Seqaya.colors.accentBrownInk
+            label = stringResource(R.string.device_state_thirsty)
+        }
+        false -> {
+            color = Seqaya.colors.accentGreen
+            softBg = Seqaya.colors.accentGreenSoft
+            ink = Seqaya.colors.accentGreenInk
+            label = stringResource(R.string.device_state_thriving)
+        }
+    }
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(100.dp))
@@ -371,5 +394,42 @@ private fun DeleteConfirmDialog(
     )
 }
 
-private fun derivedThirsty(percent: Int?, target: Int?): Boolean =
-    percent != null && target != null && percent <= target - 10
+private fun computeThirsty(percent: Int?, target: Int?): Boolean? {
+    if (percent == null || target == null) return null
+    return percent <= target - 10
+}
+
+@Composable
+private fun DetailErrorBanner(message: String, onDismiss: () -> Unit) {
+    val dismissLabel = stringResource(R.string.error_banner_dismiss)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Seqaya.colors.accentBrownSoft)
+            .padding(start = 20.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = message,
+            style = Seqaya.type.caption.copy(color = Seqaya.colors.accentBrownInk, fontSize = 12.5.sp),
+            modifier = Modifier.weight(1f).padding(vertical = 6.dp),
+        )
+        Box(
+            modifier = Modifier
+                .minimumInteractiveComponentSize()
+                .clip(CircleShape)
+                .clickable(onClick = onDismiss)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = dismissLabel
+                }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = dismissLabel,
+                style = Seqaya.type.labelCaps.copy(color = Seqaya.colors.accentBrownInk),
+            )
+        }
+    }
+}
