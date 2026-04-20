@@ -2,6 +2,7 @@ package com.seqaya.app.ui.home.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import com.seqaya.app.ui.theme.Seqaya
 @Composable
 fun DeviceCard(
     item: DeviceWithReading,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = Seqaya.colors
@@ -42,6 +44,7 @@ fun DeviceCard(
             .clip(Seqaya.shapes.card)
             .background(colors.bgCreamLightest)
             .border(1.dp, colors.border, Seqaya.shapes.card)
+            .clickable(onClick = onClick)
             .padding(20.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

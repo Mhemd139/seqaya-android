@@ -44,6 +44,7 @@ import com.seqaya.app.ui.theme.Seqaya
 
 @Composable
 fun HomeScreen(
+    onDeviceClick: (String) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -67,7 +68,11 @@ fun HomeScreen(
         when {
             state.isLoading -> Spacer(Modifier.fillMaxSize())
             state.isEmpty -> HomeEmpty(onAdd = showComingSoon, onLibrary = showComingSoon)
-            else -> HomePopulated(state = state, onReviewThirsty = showComingSoon)
+            else -> HomePopulated(
+                state = state,
+                onReviewThirsty = showComingSoon,
+                onDeviceClick = onDeviceClick,
+            )
         }
     }
 }
@@ -209,6 +214,7 @@ private fun HomeEmpty(onAdd: () -> Unit, onLibrary: () -> Unit) {
 private fun HomePopulated(
     state: HomeUiState,
     onReviewThirsty: () -> Unit,
+    onDeviceClick: (String) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -219,12 +225,15 @@ private fun HomePopulated(
             item {
                 AttentionBanner(
                     thirstyDeviceName = thirsty.displayName,
-                    onReview = onReviewThirsty,
+                    onReview = { onDeviceClick(thirsty.device.serial) },
                 )
             }
         }
         items(items = state.devices, key = { it.device.id }) { device ->
-            DeviceCard(item = device)
+            DeviceCard(
+                item = device,
+                onClick = { onDeviceClick(device.device.serial) },
+            )
         }
     }
 }
