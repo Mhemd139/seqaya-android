@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- B·01 empty -->
+    <string name="home_empty_eyebrow">A QUIET BEGINNING</string>
+    <string name="home_empty_title_line_1">Your first plant</string>
+    <string name="home_empty_title_line_2">is waiting.</string>
+    <string name="home_empty_lede">Add your Seqaya device to start. It takes about a minute.</string>
+    <string name="home_empty_primary">Add a device</string>
+    <string name="home_empty_secondary">Browse the plant library</string>
+
+    <!-- B·02 populated / reusable -->
+    <string name="home_top_add_content_description">Add a device</string>
+    <string name="home_attention_review">Review</string>
+    <string name="home_attention_suffix">is thirsty.</string>
+    <string name="home_card_last_24h">LAST 24H</string>
+    <string name="home_card_last_watered">Last watered %1$s</string>
+    <string name="home_card_seen">Seen %1$s</string>
+    <string name="home_status_thriving">Thriving</string>
+    <string name="home_status_thirsty">Thirsty</string>
+
+    <!-- F·01 offline -->
+    <string name="home_offline_banner">You\u2019re offline \u2014 showing last known state.</string>
+    <string name="home_last_updated">Last updated %1$s</string>
+
+    <!-- Shared / toasts -->
+    <string name="coming_in_next_update">Coming in the next update.</string>
+
+    <!-- Avatar -->
+    <string name="home_avatar_content_description">Your profile</string>
+
+    <!-- Error banner -->
+    <string name="error_banner_dismiss">Dismiss</string>
+</resources>

@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -8,6 +9,16 @@ plugins {
     alias(libs.plugins.kotlin.ksp)
     alias(libs.plugins.hilt)
 }
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+fun requireLocalProperty(key: String, fallback: String): String =
+    localProperties.getProperty(key)
+        ?: System.getenv(key)
+        ?: fallback
 
 android {
     namespace = "com.seqaya.app"
@@ -22,6 +33,22 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+
+        buildConfigField(
+            "String",
+            "SUPABASE_URL",
+            "\"${requireLocalProperty("SUPABASE_URL", "https://jybsouuydgstafqsxfbx.supabase.co")}\"",
+        )
+        buildConfigField(
+            "String",
+            "SUPABASE_ANON_KEY",
+            "\"${requireLocalProperty("SUPABASE_ANON_KEY", "")}\"",
+        )
+        buildConfigField(
+            "String",
+            "GOOGLE_WEB_CLIENT_ID",
+            "\"${requireLocalProperty("GOOGLE_WEB_CLIENT_ID", "")}\"",
+        )
     }
 
     buildFeatures {
@@ -103,6 +130,12 @@ dependencies {
     // Imaging + charts
     implementation(libs.coil.compose)
     implementation(libs.vico.compose.m3)
+
+    // Auth (Google Sign-In via CredentialManager) + preference storage
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
+    implementation(libs.googleid)
+    implementation(libs.androidx.datastore.preferences)
 
     // Unit tests
     testImplementation(libs.junit)

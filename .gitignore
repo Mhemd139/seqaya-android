@@ -26,6 +26,7 @@ google-services.json
 **/src/**/google-services.json
 secrets.properties
 local.secrets
+client_secret_*.json
 
 # Logs
 *.log
