@@ -27,4 +27,7 @@
 
     <!-- Avatar -->
     <string name="home_avatar_content_description">Your profile</string>
+
+    <!-- Error banner -->
+    <string name="error_banner_dismiss">Dismiss</string>
 </resources>

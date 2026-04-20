@@ -25,6 +25,8 @@ class DeviceRepository(
     fun observeDevices(): Flow<List<Device>> =
         dao.observeAll().map { list -> list.map { it.toDomain() } }
 
+    suspend fun serialsSnapshot(): List<String> = dao.getAllSerials()
+
     suspend fun refresh(): Result<Unit> = runCatching {
         val remote = supabase.from("devices")
             .select(columns = DEVICE_COLUMNS)

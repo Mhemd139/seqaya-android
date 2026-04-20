@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,6 +60,7 @@ fun HomeScreen(
 
         HomeTopBar(
             showPlus = !state.isEmpty,
+            avatarLetter = state.avatarLetter,
             onAddClick = showComingSoon,
         )
 
@@ -72,28 +74,41 @@ fun HomeScreen(
 
 @Composable
 private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
+    val dismissLabel = stringResource(R.string.error_banner_dismiss)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(Seqaya.colors.accentBrownSoft)
-            .clickable(onClick = onDismiss)
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(start = 20.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = message,
             style = Seqaya.type.caption.copy(color = Seqaya.colors.accentBrownInk, fontSize = 12.5.sp),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).padding(vertical = 6.dp),
         )
-        Text(
-            text = "Dismiss",
-            style = Seqaya.type.labelCaps.copy(color = Seqaya.colors.accentBrownInk),
-        )
+        Box(
+            modifier = Modifier
+                .minimumInteractiveComponentSize()
+                .clip(CircleShape)
+                .clickable(onClick = onDismiss)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = dismissLabel
+                }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = dismissLabel,
+                style = Seqaya.type.labelCaps.copy(color = Seqaya.colors.accentBrownInk),
+            )
+        }
     }
 }
 
 @Composable
-private fun HomeTopBar(showPlus: Boolean, onAddClick: () -> Unit) {
+private fun HomeTopBar(showPlus: Boolean, avatarLetter: String, onAddClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -109,6 +124,7 @@ private fun HomeTopBar(showPlus: Boolean, onAddClick: () -> Unit) {
             val addDescription = stringResource(R.string.home_top_add_content_description)
             Box(
                 modifier = Modifier
+                    .minimumInteractiveComponentSize()
                     .size(36.dp)
                     .clip(CircleShape)
                     .clickable(onClick = onAddClick)
@@ -128,7 +144,7 @@ private fun HomeTopBar(showPlus: Boolean, onAddClick: () -> Unit) {
             }
             Spacer(Modifier.size(6.dp))
         }
-        Avatar(letter = "M")
+        Avatar(letter = avatarLetter)
     }
 }
 
@@ -217,7 +233,7 @@ private fun HomePopulated(
 private fun PrimaryButton(label: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .height(52.dp)
+            .height(56.dp)
             .clip(Seqaya.shapes.button)
             .background(Seqaya.colors.accentGreen)
             .clickable(onClick = onClick)

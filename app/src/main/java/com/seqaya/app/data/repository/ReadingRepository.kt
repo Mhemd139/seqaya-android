@@ -27,7 +27,7 @@ private val READING_COLUMNS = Columns.list(
     "id", "device_serial", "soil_moisture_percent",
     "is_valve_open", "is_watering_paused", "recorded_at",
 )
-private val realtimeJson = Json { ignoreUnknownKeys = true; coerceInputValues = true }
+private val realtimeJson = Json { ignoreUnknownKeys = true }
 
 class ReadingRepository(
     private val supabase: SupabaseClient,

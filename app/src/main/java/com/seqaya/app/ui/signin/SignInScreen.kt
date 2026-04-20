@@ -132,10 +132,11 @@ fun SignInScreen(
 @Composable
 private fun GoogleButton(inFlight: Boolean, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
+    val googleGlyphDescription = stringResource(R.string.google_g_content_description)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(56.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(Seqaya.colors.accentGreen)
             .clickable(
@@ -158,7 +159,7 @@ private fun GoogleButton(inFlight: Boolean, onClick: () -> Unit) {
             Box(
                 modifier = Modifier
                     .size(18.dp)
-                    .semantics { contentDescription = "Google" },
+                    .semantics { contentDescription = googleGlyphDescription },
             ) {
                 GoogleGlyph(modifier = Modifier.size(18.dp))
             }

@@ -12,6 +12,9 @@ interface DeviceDao {
     @Query("SELECT id, serial, nickname, targetMoisturePercent, holdModeActive, registeredAtEpochMs FROM devices ORDER BY registeredAtEpochMs ASC")
     fun observeAll(): Flow<List<DeviceEntity>>
 
+    @Query("SELECT serial FROM devices ORDER BY registeredAtEpochMs ASC")
+    suspend fun getAllSerials(): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(devices: List<DeviceEntity>)
 
