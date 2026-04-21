@@ -66,6 +66,9 @@ object ApduProtocol {
                 password.requireNoDelimiter("password")
                 userId.requireNoDelimiter("userId")
                 serial.requireNoDelimiter("serial")
+                require(targetMoisture in 0..100) {
+                    "targetMoisture $targetMoisture out of 0..100"
+                }
             }
 
             override fun body() = buildString {
@@ -100,6 +103,9 @@ object ApduProtocol {
                 password.requireNoDelimiter("password")
                 userId.requireNoDelimiter("userId")
                 serial.requireNoDelimiter("serial")
+                require(targetMoisture in 0..100) {
+                    "targetMoisture $targetMoisture out of 0..100"
+                }
             }
 
             override fun body() = buildString {

@@ -47,6 +47,11 @@ class ProvisioningSession internal constructor(
     private var pendingChunks: List<ByteArray> = emptyList()
     private var cursor: Int = 0
     private var timeoutJob: Job? = null
+    // Generation counter guards against an old delayed-timeout coroutine waking up after
+    // a new session has been armed. Job.cancel() is cooperative — a timer that has already
+    // passed `delay(...)` can still mutate state before cancellation is observed. The
+    // generation check inside the launched block makes the race impossible.
+    private var timeoutGeneration: Long = 0L
 
     @Synchronized
     fun arm(command: ApduProtocol.Command) {
@@ -140,13 +145,18 @@ class ProvisioningSession internal constructor(
 
     private fun scheduleTimeout() {
         cancelTimeout()
+        val generation = ++timeoutGeneration
         timeoutJob = scope.launch {
             delay(timeoutMs)
-            when (_status.value) {
-                is Status.ReadyToTap, is Status.Transferring -> {
-                    _status.value = Status.Failed(FailureReason.Timeout)
+            // Re-take the monitor so the generation check and the state mutation are
+            // atomic with respect to arm/dismiss/cancelTimeout racing from other threads.
+            synchronized(this@ProvisioningSession) {
+                if (generation != timeoutGeneration) return@synchronized
+                when (_status.value) {
+                    is Status.ReadyToTap, is Status.Transferring ->
+                        _status.value = Status.Failed(FailureReason.Timeout)
+                    else -> { /* terminal state reached before timeout — ignore */ }
                 }
-                else -> { /* terminal state reached before timeout — ignore */ }
             }
         }
     }
@@ -154,6 +164,9 @@ class ProvisioningSession internal constructor(
     private fun cancelTimeout() {
         timeoutJob?.cancel()
         timeoutJob = null
+        // Bump generation so any already-resumed-but-not-yet-executed timeout coroutine
+        // will fail its generation check and bail instead of clobbering fresh state.
+        timeoutGeneration++
     }
 
     fun shutdown() {

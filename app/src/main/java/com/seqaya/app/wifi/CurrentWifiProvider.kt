@@ -26,8 +26,12 @@ import javax.inject.Singleton
 class CurrentWifiProvider @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-    private val wifiManager = context.applicationContext
-        .getSystemService(Context.WIFI_SERVICE) as WifiManager
+    // Wi-Fi hardware is not declared as a required feature in AndroidManifest, so
+    // getSystemService can legally return null on devices without Wi-Fi (rare, but
+    // possible on some Chrome OS ARC containers and Android TV form factors).
+    // Safe-cast and guard every read so null propagates to "no SSID" instead of crashing.
+    private val wifiManager: WifiManager? = context.applicationContext
+        .getSystemService(Context.WIFI_SERVICE) as? WifiManager
 
     /** True if we hold ACCESS_FINE_LOCATION at runtime (required for SSID access). */
     val hasLocationPermission: Boolean
@@ -45,8 +49,9 @@ class CurrentWifiProvider @Inject constructor(
      */
     fun currentSsid(): String? {
         if (!hasLocationPermission) return null
+        val mgr = wifiManager ?: return null
         @Suppress("DEPRECATION")
-        val info = wifiManager.connectionInfo ?: return null
+        val info = mgr.connectionInfo ?: return null
         val raw = info.ssid ?: return null
         if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
         // WifiManager returns SSIDs wrapped in quotes: "MyNetwork" — strip them.
@@ -65,8 +70,9 @@ class CurrentWifiProvider @Inject constructor(
     @Suppress("DEPRECATION") // WifiManager.startScan / scanResults deprecated on API 28+
     fun scanResultSsids(): List<String> {
         if (!hasLocationPermission) return emptyList()
+        val mgr = wifiManager ?: return emptyList()
         return runCatching {
-            wifiManager.scanResults
+            mgr.scanResults
                 .filter { it.frequency in TWO_POINT_FOUR_GHZ_RANGE }
                 .filter { !it.SSID.isNullOrBlank() }
                 .sortedByDescending { it.level }

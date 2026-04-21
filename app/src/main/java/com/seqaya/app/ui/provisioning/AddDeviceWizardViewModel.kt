@@ -81,7 +81,15 @@ class AddDeviceWizardViewModel @Inject constructor(
         loadPlants()
         viewModelScope.launch {
             session.status.collect { status ->
-                if (status is ProvisioningSession.Status.Transferred && !hasInsertedDevice) {
+                // The session is a @Singleton shared with contextual actions. Only
+                // react to a Transferred carrying *our* Add command with the serial
+                // we armed — otherwise a Locate/Hold/Dry/Wet Transferred could
+                // trigger a spurious device insert if this VM hasn't been cleared yet.
+                if (status !is ProvisioningSession.Status.Transferred) return@collect
+                if (hasInsertedDevice) return@collect
+                val cmd = status.command
+                val expectedSerial = _ui.value.serial
+                if (cmd is ApduProtocol.Command.Add && cmd.serial == expectedSerial) {
                     completeDeviceInsert()
                 }
             }
