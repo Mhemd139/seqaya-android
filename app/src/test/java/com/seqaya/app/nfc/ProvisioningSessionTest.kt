@@ -51,17 +51,17 @@ class ProvisioningSessionTest {
         sut.arm(locate)
         sut.onSelectAid()
 
-        // Locate encodes to "L$" → one terminal chunk: 90 00 L $
-        val first = sut.nextChunk()
-        assertArrayEquals(
-            byteArrayOf(0x90.toByte(), 0x00, 'L'.code.toByte(), '$'.code.toByte()),
-            first,
-        )
+        // Locate encodes to `{"c":"L"}` — 9 bytes → one 8-byte chunk + one 1-byte terminal.
+        // Drain every chunk and reassemble; the reconstructed payload must parse as JSON.
+        val chunks = generateSequence { sut.nextChunk() }.toList()
+        val payload = chunks.fold(ByteArray(0)) { acc, c -> acc + c.drop(2).toByteArray() }
+        assertEquals("""{"c":"L"}""", payload.toString(Charsets.UTF_8))
 
-        // After terminal chunk, state advances to Transferred
+        // Last chunk is terminal (90 00)
+        assertEquals(0x90.toByte(), chunks.last()[0])
+        assertEquals(0x00.toByte(), chunks.last()[1])
+
         assertTrue(sut.status.value is ProvisioningSession.Status.Transferred)
-
-        // Further nextChunk calls return null
         assertEquals(null, sut.nextChunk())
     }
 

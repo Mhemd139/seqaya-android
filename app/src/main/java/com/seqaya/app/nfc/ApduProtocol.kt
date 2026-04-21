@@ -1,21 +1,32 @@
 package com.seqaya.app.nfc
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.security.SecureRandom
 
 /**
  * Wire protocol between the Android app (HCE card) and Seqaya firmware (PN532 reader).
  *
- * Transaction shape (Qanat's firmware is the authority):
- *   1. Firmware → app: SELECT AID APDU (12 bytes, F2 23 34 45 56 67).
- *   2. App → firmware: OK status 90 00 (session armed) or NACK 6A 82 (not ready).
- *   3. Firmware → app: poll byte 0x02, repeated until it receives a response whose first
- *      two bytes are 90 00.
- *   4. App → firmware: one response per poll, each carrying a 2-byte status prefix +
- *      up to 8 bytes of payload. Non-terminal status = 00 00, terminal = 90 00.
+ * Payload is a JSON object; firmware parses with ArduinoJson. The old
+ * `$`-delimited format bricked devices on SSIDs/passwords containing `$`
+ * (real-world: "Pa$$w0rd", "Café$TPMO"). JSON handles every character via
+ * proper string escaping, and unknown keys are ignored — new fields are
+ * additive, no coordinated app+firmware rollout needed.
  *
- * SeqayaStreamingV2.ino:processResponse treats bytes 0-1 of every response as the
- * status code and appends bytes 2+ as payload, so the status prefix is mandatory on
- * every chunk — not just the last one.
+ * Transaction (Qanat's firmware is the authority):
+ *   1. Firmware → app: SELECT AID APDU (12 bytes, F2 23 34 45 56 67).
+ *   2. App → firmware: OK 90 00 (armed) or NACK 6A 82 (idle).
+ *   3. Firmware → app: poll byte 0x02 until response starts with 90 00.
+ *   4. App → firmware: chunks of `[2-byte status][up to 8 payload bytes]`.
+ *      Non-terminal status 00 00, terminal 90 00. processResponse() treats
+ *      bytes 0-1 of every chunk as status, so the prefix is mandatory on all.
+ *
+ * Compact short keys to keep the payload small across NFC chunks:
+ *   c=command, ssid, pw=password, uid=userId, sn=serial,
+ *   t=targetMoisture, h=holdMode, k=keepHistory
  */
 object ApduProtocol {
 
@@ -25,7 +36,6 @@ object ApduProtocol {
     val NACK_STATUS = byteArrayOf(0x6A, 0x82.toByte())
     private val CONTINUE_STATUS = byteArrayOf(0x00, 0x00)
 
-    /** Firmware's single-byte "next chunk please" request. */
     private val PULL_BYTE = byteArrayOf(0x02)
 
     /** Max payload bytes per chunk — 10-byte total chunk minus 2-byte status prefix. */
@@ -34,24 +44,19 @@ object ApduProtocol {
     /** Canonical SELECT AID APDU from firmware: 00 A4 04 00 06 <AID> 00. */
     private val SELECT_AID_HEADER = byteArrayOf(0x00, 0xA4.toByte(), 0x04, 0x00, 0x06)
 
-    /**
-     * The firmware parser splits payload on literal `$`. Any field that itself contains `$`
-     * shifts every following field position, corrupting the serial / moisture / hold-mode
-     * writes to NVS. Since firmware does not unescape, we reject any string field carrying
-     * `$` at construction time and surface the error at the UI boundary (Wi-Fi step).
-     */
-    class DelimiterInFieldException(val field: String) :
-        IllegalArgumentException("Field '$field' contains '\$' which is reserved as the APDU delimiter. Rejecting to avoid firmware parse corruption.")
-
-    private fun String.requireNoDelimiter(fieldName: String): String {
-        if (contains('$')) throw DelimiterInFieldException(fieldName)
-        return this
-    }
+    private val JSON = Json { encodeDefaults = true }
 
     sealed class Command(val letter: Char) {
-        protected abstract fun body(): String
+        protected abstract fun extraFields(builder: JsonObjectBuilderScope)
 
-        fun encode(): ByteArray = "$letter\$${body()}".toByteArray(Charsets.UTF_8)
+        fun encode(): ByteArray {
+            val obj = buildJsonObject {
+                put("c", letter.toString())
+                extraFields(JsonObjectBuilderScope(this))
+            }
+            return JSON.encodeToString(JsonObject.serializer(), obj)
+                .toByteArray(Charsets.UTF_8)
+        }
 
         data class Add(
             val ssid: String,
@@ -62,31 +67,27 @@ object ApduProtocol {
             val holdMode: Boolean,
         ) : Command('A') {
             init {
-                ssid.requireNoDelimiter("ssid")
-                password.requireNoDelimiter("password")
-                userId.requireNoDelimiter("userId")
-                serial.requireNoDelimiter("serial")
                 require(targetMoisture in 0..100) {
                     "targetMoisture $targetMoisture out of 0..100"
                 }
             }
 
-            override fun body() = buildString {
-                append(ssid); append('$')
-                append(password); append('$')
-                append(userId); append('$')
-                append(serial); append('$')
-                append(targetMoisture); append('$')
-                append(if (holdMode) '1' else '0'); append('$')
-            }
+            override fun extraFields(builder: JsonObjectBuilderScope) = builder.apply {
+                put("ssid", ssid)
+                put("pw", password)
+                put("uid", userId)
+                put("sn", serial)
+                put("t", targetMoisture)
+                put("h", if (holdMode) 1 else 0)
+            }.let { }
         }
 
         data object Locate : Command('L') {
-            override fun body() = ""
+            override fun extraFields(builder: JsonObjectBuilderScope) {}
         }
 
         data object HoldToggle : Command('H') {
-            override fun body() = ""
+            override fun extraFields(builder: JsonObjectBuilderScope) {}
         }
 
         data class Reprogram(
@@ -99,37 +100,36 @@ object ApduProtocol {
             val keepHistory: Boolean,
         ) : Command('R') {
             init {
-                ssid.requireNoDelimiter("ssid")
-                password.requireNoDelimiter("password")
-                userId.requireNoDelimiter("userId")
-                serial.requireNoDelimiter("serial")
                 require(targetMoisture in 0..100) {
                     "targetMoisture $targetMoisture out of 0..100"
                 }
             }
 
-            override fun body() = buildString {
-                append(ssid); append('$')
-                append(password); append('$')
-                append(userId); append('$')
-                append(serial); append('$')
-                append(targetMoisture); append('$')
-                append(if (holdMode) '1' else '0'); append('$')
-                append(if (keepHistory) '1' else '0'); append('$')
-            }
+            override fun extraFields(builder: JsonObjectBuilderScope) = builder.apply {
+                put("ssid", ssid)
+                put("pw", password)
+                put("uid", userId)
+                put("sn", serial)
+                put("t", targetMoisture)
+                put("h", if (holdMode) 1 else 0)
+                put("k", if (keepHistory) 1 else 0)
+            }.let { }
         }
 
         data object DryMap : Command('D') {
-            override fun body() = ""
+            override fun extraFields(builder: JsonObjectBuilderScope) {}
         }
 
         data object WetMap : Command('W') {
-            override fun body() = ""
+            override fun extraFields(builder: JsonObjectBuilderScope) {}
         }
     }
 
-    /** Convenience predicate for UI validation (Wi-Fi step). */
-    fun fieldContainsDelimiter(value: String): Boolean = value.contains('$')
+    /** Thin wrapper so subclasses don't need to import buildJsonObject internals. */
+    class JsonObjectBuilderScope(private val delegate: kotlinx.serialization.json.JsonObjectBuilder) {
+        fun put(key: String, value: String) { delegate.put(key, JsonPrimitive(value)) }
+        fun put(key: String, value: Int) { delegate.put(key, JsonPrimitive(value)) }
+    }
 
     /**
      * Split [payload] into chunks that firmware's poll loop can reassemble.

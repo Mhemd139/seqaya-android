@@ -1,5 +1,9 @@
 package com.seqaya.app.nfc
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -7,6 +11,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ApduProtocolTest {
+
+    // Parse the encoded payload back into a JsonObject so tests read fields by name.
+    private fun ApduProtocol.Command.encodedAsJson(): JsonObject =
+        Json.parseToJsonElement(encode().toString(Charsets.UTF_8)) as JsonObject
 
     @Test fun `AID is F2 23 34 45 56 67`() {
         assertArrayEquals(
@@ -35,66 +43,125 @@ class ApduProtocolTest {
         assertTrue("collisions in 200 samples: ${200 - serials.size}", serials.size >= 195)
     }
 
-    @Test fun `Add command encodes letter prefix and six fields`() {
-        val cmd = ApduProtocol.Command.Add(
+    @Test fun `Add command encodes all seven fields`() {
+        val json = ApduProtocol.Command.Add(
             ssid = "MyWifi",
             password = "secret123",
             userId = "user-abc",
             serial = "SQ-A3F72B91",
             targetMoisture = 60,
             holdMode = false,
-        )
-        assertEquals(
-            "A\$MyWifi\$secret123\$user-abc\$SQ-A3F72B91\$60\$0\$",
-            cmd.encode().toString(Charsets.UTF_8),
-        )
+        ).encodedAsJson()
+
+        assertEquals("A", json["c"]!!.jsonPrimitive.content)
+        assertEquals("MyWifi", json["ssid"]!!.jsonPrimitive.content)
+        assertEquals("secret123", json["pw"]!!.jsonPrimitive.content)
+        assertEquals("user-abc", json["uid"]!!.jsonPrimitive.content)
+        assertEquals("SQ-A3F72B91", json["sn"]!!.jsonPrimitive.content)
+        assertEquals(60, json["t"]!!.jsonPrimitive.intOrNull)
+        assertEquals(0, json["h"]!!.jsonPrimitive.intOrNull)
     }
 
     @Test fun `Add encodes holdMode true as 1`() {
-        val cmd = ApduProtocol.Command.Add("w", "p", "u", "SQ-00000001", 55, true)
-        assertEquals("A\$w\$p\$u\$SQ-00000001\$55\$1\$", cmd.encode().toString(Charsets.UTF_8))
+        val json = ApduProtocol.Command.Add("w", "p", "u", "SQ-00000001", 55, true)
+            .encodedAsJson()
+        assertEquals(1, json["h"]!!.jsonPrimitive.intOrNull)
     }
 
-    @Test fun `Locate command encodes L-dollar only`() {
-        assertEquals("L\$", ApduProtocol.Command.Locate.encode().toString(Charsets.UTF_8))
+    @Test fun `Locate encodes command-only JSON`() {
+        val json = ApduProtocol.Command.Locate.encodedAsJson()
+        assertEquals("L", json["c"]!!.jsonPrimitive.content)
+        assertEquals(1, json.size)
     }
 
-    @Test fun `HoldToggle encodes H-dollar only`() {
-        assertEquals("H\$", ApduProtocol.Command.HoldToggle.encode().toString(Charsets.UTF_8))
+    @Test fun `HoldToggle encodes command-only JSON`() {
+        val json = ApduProtocol.Command.HoldToggle.encodedAsJson()
+        assertEquals("H", json["c"]!!.jsonPrimitive.content)
+        assertEquals(1, json.size)
     }
 
-    @Test fun `DryMap encodes D-dollar only`() {
-        assertEquals("D\$", ApduProtocol.Command.DryMap.encode().toString(Charsets.UTF_8))
+    @Test fun `DryMap encodes command-only JSON`() {
+        val json = ApduProtocol.Command.DryMap.encodedAsJson()
+        assertEquals("D", json["c"]!!.jsonPrimitive.content)
+        assertEquals(1, json.size)
     }
 
-    @Test fun `WetMap encodes W-dollar only`() {
-        assertEquals("W\$", ApduProtocol.Command.WetMap.encode().toString(Charsets.UTF_8))
+    @Test fun `WetMap encodes command-only JSON`() {
+        val json = ApduProtocol.Command.WetMap.encodedAsJson()
+        assertEquals("W", json["c"]!!.jsonPrimitive.content)
+        assertEquals(1, json.size)
     }
 
-    @Test fun `Reprogram keepHistory true encodes trailing 1`() {
-        val cmd = ApduProtocol.Command.Reprogram(
+    @Test fun `Reprogram keepHistory true encodes k as 1`() {
+        val json = ApduProtocol.Command.Reprogram(
             ssid = "w", password = "p", userId = "u",
             serial = "SQ-DEADBEEF", targetMoisture = 70, holdMode = false,
             keepHistory = true,
-        )
-        assertEquals(
-            "R\$w\$p\$u\$SQ-DEADBEEF\$70\$0\$1\$",
-            cmd.encode().toString(Charsets.UTF_8),
+        ).encodedAsJson()
+        assertEquals("R", json["c"]!!.jsonPrimitive.content)
+        assertEquals(1, json["k"]!!.jsonPrimitive.intOrNull)
+    }
+
+    @Test fun `Reprogram keepHistory false encodes k as 0`() {
+        val json = ApduProtocol.Command.Reprogram(
+            "w", "p", "u", "SQ-00000002", 50, true, keepHistory = false,
+        ).encodedAsJson()
+        assertEquals(0, json["k"]!!.jsonPrimitive.intOrNull)
+    }
+
+    @Test fun `Add accepts SSID containing dollar sign`() {
+        val json = ApduProtocol.Command.Add(
+            ssid = "Café\$TPMO", password = "p", userId = "u",
+            serial = "SQ-A3F72B91", targetMoisture = 60, holdMode = false,
+        ).encodedAsJson()
+        assertEquals("Café\$TPMO", json["ssid"]!!.jsonPrimitive.content)
+    }
+
+    @Test fun `Add accepts password with quotes backslashes and emoji`() {
+        val pw = "Pa\$\$\"w0rd\\\\🔐"
+        val json = ApduProtocol.Command.Add(
+            ssid = "w", password = pw, userId = "u",
+            serial = "SQ-A3F72B91", targetMoisture = 60, holdMode = false,
+        ).encodedAsJson()
+        assertEquals(pw, json["pw"]!!.jsonPrimitive.content)
+    }
+
+    @Test fun `Add accepts multi-byte unicode and newline in ssid`() {
+        val ssid = "Café 🌱\nWifi"
+        val json = ApduProtocol.Command.Add(
+            ssid = ssid, password = "p", userId = "u",
+            serial = "SQ-A3F72B91", targetMoisture = 60, holdMode = false,
+        ).encodedAsJson()
+        assertEquals(ssid, json["ssid"]!!.jsonPrimitive.content)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `Add rejects targetMoisture below 0`() {
+        ApduProtocol.Command.Add(
+            "w", "p", "u", "SQ-A3F72B91", targetMoisture = -1, holdMode = false,
         )
     }
 
-    @Test fun `Reprogram keepHistory false encodes trailing 0`() {
-        val cmd = ApduProtocol.Command.Reprogram(
-            "w", "p", "u", "SQ-00000002", 50, true, keepHistory = false,
+    @Test(expected = IllegalArgumentException::class)
+    fun `Add rejects targetMoisture above 100`() {
+        ApduProtocol.Command.Add(
+            "w", "p", "u", "SQ-A3F72B91", targetMoisture = 101, holdMode = false,
         )
-        assertEquals("R\$w\$p\$u\$SQ-00000002\$50\$1\$0\$", cmd.encode().toString(Charsets.UTF_8))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `Reprogram rejects out-of-range targetMoisture`() {
+        ApduProtocol.Command.Reprogram(
+            "w", "p", "u", "SQ-A3F72B91", targetMoisture = 200, holdMode = false,
+            keepHistory = false,
+        )
     }
 
     @Test fun `chunkResponses wraps tiny payload in one terminal chunk with 90 00`() {
-        val chunks = ApduProtocol.chunkResponses("L\$".toByteArray(Charsets.UTF_8))
+        val chunks = ApduProtocol.chunkResponses("L".toByteArray(Charsets.UTF_8))
         assertEquals(1, chunks.size)
         assertArrayEquals(
-            byteArrayOf(0x90.toByte(), 0x00, 'L'.code.toByte(), '$'.code.toByte()),
+            byteArrayOf(0x90.toByte(), 0x00, 'L'.code.toByte()),
             chunks[0],
         )
     }
@@ -103,12 +170,10 @@ class ApduProtocolTest {
         val payload = "0123456789ABCDEF".toByteArray(Charsets.UTF_8) // exactly 16 bytes
         val chunks = ApduProtocol.chunkResponses(payload)
         assertEquals(2, chunks.size)
-        // First chunk: 00 00 + first 8 bytes
         assertArrayEquals(
             byteArrayOf(0x00, 0x00) + "01234567".toByteArray(Charsets.UTF_8),
             chunks[0],
         )
-        // Second chunk (terminal): 90 00 + last 8 bytes
         assertArrayEquals(
             byteArrayOf(0x90.toByte(), 0x00) + "89ABCDEF".toByteArray(Charsets.UTF_8),
             chunks[1],
@@ -116,16 +181,15 @@ class ApduProtocolTest {
     }
 
     @Test fun `chunkResponses 17-byte payload splits into two non-terminal plus terminal single-byte`() {
-        val payload = "0123456789ABCDEFG".toByteArray(Charsets.UTF_8) // 17 bytes
+        val payload = "0123456789ABCDEFG".toByteArray(Charsets.UTF_8)
         val chunks = ApduProtocol.chunkResponses(payload)
         assertEquals(3, chunks.size)
-        // First two chunks non-terminal (8 bytes each), third chunk terminal with 1 byte
         assertEquals("00 00", chunks[0].take(2).joinToString(" ") { "%02X".format(it) })
         assertEquals("00 00", chunks[1].take(2).joinToString(" ") { "%02X".format(it) })
         assertEquals("90 00", chunks[2].take(2).joinToString(" ") { "%02X".format(it) })
         assertEquals(10, chunks[0].size)
         assertEquals(10, chunks[1].size)
-        assertEquals(3, chunks[2].size) // 2 status + 1 payload byte
+        assertEquals(3, chunks[2].size)
     }
 
     @Test fun `chunkResponses 0-byte payload is one terminal chunk of just 90 00`() {
@@ -140,7 +204,6 @@ class ApduProtocolTest {
             "SQ-A3F72B91", 65, false,
         ).encode()
         val chunks = ApduProtocol.chunkResponses(original)
-        // Strip 2-byte status prefix from each chunk and concatenate
         val reassembled = chunks.fold(ByteArray(0)) { acc, chunk -> acc + chunk.drop(2).toByteArray() }
         assertArrayEquals(original, reassembled)
     }
@@ -185,56 +248,5 @@ class ApduProtocolTest {
 
     @Test fun `isPullByte rejects multi-byte arrays`() {
         assertFalse(ApduProtocol.isPullByte(byteArrayOf(0x02, 0x00)))
-    }
-
-    @Test(expected = ApduProtocol.DelimiterInFieldException::class)
-    fun `Add rejects SSID containing dollar sign`() {
-        ApduProtocol.Command.Add(
-            ssid = "Cafe\$TPMO", password = "p", userId = "u",
-            serial = "SQ-A3F72B91", targetMoisture = 60, holdMode = false,
-        )
-    }
-
-    @Test(expected = ApduProtocol.DelimiterInFieldException::class)
-    fun `Add rejects password containing dollar sign`() {
-        ApduProtocol.Command.Add(
-            ssid = "w", password = "pa\$\$word", userId = "u",
-            serial = "SQ-A3F72B91", targetMoisture = 60, holdMode = false,
-        )
-    }
-
-    @Test(expected = ApduProtocol.DelimiterInFieldException::class)
-    fun `Add rejects userId containing dollar sign`() {
-        ApduProtocol.Command.Add(
-            ssid = "w", password = "p", userId = "\$foo",
-            serial = "SQ-A3F72B91", targetMoisture = 60, holdMode = false,
-        )
-    }
-
-    @Test(expected = ApduProtocol.DelimiterInFieldException::class)
-    fun `Reprogram rejects password containing dollar sign`() {
-        ApduProtocol.Command.Reprogram(
-            ssid = "w", password = "ba\$d", userId = "u",
-            serial = "SQ-A3F72B91", targetMoisture = 60, holdMode = false,
-            keepHistory = true,
-        )
-    }
-
-    @Test fun `fieldContainsDelimiter detects dollar sign and nothing else`() {
-        assertTrue(ApduProtocol.fieldContainsDelimiter("MyNet\$work"))
-        assertTrue(ApduProtocol.fieldContainsDelimiter("\$"))
-        assertFalse(ApduProtocol.fieldContainsDelimiter("Cafe_TPMO"))
-        assertFalse(ApduProtocol.fieldContainsDelimiter(""))
-    }
-
-    @Test fun `DelimiterInFieldException exposes the offending field name`() {
-        val ex = try {
-            ApduProtocol.Command.Add(
-                ssid = "w", password = "p", userId = "u\$x",
-                serial = "SQ-A3F72B91", targetMoisture = 60, holdMode = false,
-            )
-            null
-        } catch (e: ApduProtocol.DelimiterInFieldException) { e }
-        assertEquals("userId", ex?.field)
     }
 }

@@ -144,25 +144,9 @@ class AddDeviceWizardViewModel @Inject constructor(
         val plant = ui.selectedPlant ?: return
         if (ui.ssid.isBlank() || ui.password.isBlank()) return
 
-        // Reject `$` anywhere in the text fields before we hand them to the firmware —
-        // the APDU payload is `$`-delimited and the firmware parser does not unescape.
-        // An SSID like "My$Wifi" would corrupt the serial/target/hold fields downstream.
-        if (ApduProtocol.fieldContainsDelimiter(ui.ssid)) {
-            _ui.update { it.copy(error = "Wi-Fi name can't contain \$. Switch to a different network.") }
-            return
-        }
-        if (ApduProtocol.fieldContainsDelimiter(ui.password)) {
-            _ui.update { it.copy(error = "Password can't contain \$ (device limitation). Use a network without \$ in the password.") }
-            return
-        }
-
         val userId = supabase.auth.currentUserOrNull()?.id
         if (userId.isNullOrBlank()) {
             _ui.update { it.copy(error = "Not signed in. Sign in again and retry.") }
-            return
-        }
-        if (ApduProtocol.fieldContainsDelimiter(userId)) {
-            _ui.update { it.copy(error = "Your account id is incompatible with the device protocol. Contact support.") }
             return
         }
 
