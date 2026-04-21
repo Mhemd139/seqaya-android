@@ -45,6 +45,7 @@ import com.seqaya.app.ui.theme.Seqaya
 @Composable
 fun HomeScreen(
     onDeviceClick: (String) -> Unit = {},
+    onAddDevice: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -62,12 +63,12 @@ fun HomeScreen(
         HomeTopBar(
             showPlus = !state.isEmpty,
             avatarLetter = state.avatarLetter,
-            onAddClick = showComingSoon,
+            onAddClick = onAddDevice,
         )
 
         when {
             state.isLoading -> Spacer(Modifier.fillMaxSize())
-            state.isEmpty -> HomeEmpty(onAdd = showComingSoon, onLibrary = showComingSoon)
+            state.isEmpty -> HomeEmpty(onAdd = onAddDevice, onLibrary = showComingSoon)
             else -> HomePopulated(
                 state = state,
                 onReviewThirsty = showComingSoon,

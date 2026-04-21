@@ -24,6 +24,7 @@ import com.seqaya.app.ui.components.PaperGrain
 import com.seqaya.app.ui.device.DeviceDetailScreen
 import com.seqaya.app.ui.home.HomeScreen
 import com.seqaya.app.ui.navigation.SeqayaBottomBar
+import com.seqaya.app.ui.provisioning.AddDeviceScreen
 import com.seqaya.app.ui.navigation.TopLevelDestination
 import com.seqaya.app.ui.plants.LibraryPlaceholderScreen
 import com.seqaya.app.ui.scan.ScanPlaceholderScreen
@@ -89,9 +90,10 @@ private fun SignedInRoot() {
                 modifier = Modifier.fillMaxSize(),
             ) {
                 composable(TopLevelDestination.Home.route) {
-                    HomeScreen(onDeviceClick = { serial ->
-                        navController.navigate("device/$serial")
-                    })
+                    HomeScreen(
+                        onDeviceClick = { serial -> navController.navigate("device/$serial") },
+                        onAddDevice = { navController.navigate("addDevice") },
+                    )
                 }
                 composable(TopLevelDestination.Scan.route) { ScanPlaceholderScreen() }
                 composable(TopLevelDestination.Library.route) { LibraryPlaceholderScreen() }
@@ -100,6 +102,15 @@ private fun SignedInRoot() {
                     arguments = listOf(navArgument("serial") { type = NavType.StringType }),
                 ) {
                     DeviceDetailScreen(onBack = { navController.popBackStack() })
+                }
+                composable("addDevice") {
+                    AddDeviceScreen(
+                        onFinish = { serial, _ ->
+                            navController.popBackStack()
+                            navController.navigate("device/$serial") { launchSingleTop = true }
+                        },
+                        onCancel = { navController.popBackStack() },
+                    )
                 }
             }
         }
