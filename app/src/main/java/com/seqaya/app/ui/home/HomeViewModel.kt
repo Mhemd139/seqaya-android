@@ -39,6 +39,7 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     private val deviceRepository: DeviceRepository,
     private val readingRepository: ReadingRepository,
+    private val debugSeeder: com.seqaya.app.debug.DebugSeeder,
     authRepository: AuthRepository,
     connectivity: ConnectivityObserver,
 ) : ViewModel() {
@@ -84,6 +85,20 @@ class HomeViewModel @Inject constructor(
 
     fun dismissError() {
         errorFlow.value = null
+    }
+
+    /** Debug-only: seed a mock device + 48 h of readings. Gated by BuildConfig.DEBUG in the UI. */
+    fun seedMockDevice() {
+        viewModelScope.launch {
+            debugSeeder.seedMockDevice()
+                .onSuccess { serial ->
+                    deviceRepository.refresh()
+                    readingRepository.refreshLatestFor(listOf(serial))
+                }
+                .onFailure {
+                    errorFlow.value = "Seeder failed: ${it.message ?: "unknown"}"
+                }
+        }
     }
 
     private fun merge(

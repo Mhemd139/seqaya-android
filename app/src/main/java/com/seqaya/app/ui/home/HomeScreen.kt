@@ -68,7 +68,11 @@ fun HomeScreen(
 
         when {
             state.isLoading -> Spacer(Modifier.fillMaxSize())
-            state.isEmpty -> HomeEmpty(onAdd = onAddDevice, onLibrary = showComingSoon)
+            state.isEmpty -> HomeEmpty(
+                onAdd = onAddDevice,
+                onLibrary = showComingSoon,
+                onSeedMock = viewModel::seedMockDevice.takeIf { com.seqaya.app.BuildConfig.DEBUG },
+            )
             else -> HomePopulated(
                 state = state,
                 onReviewThirsty = showComingSoon,
@@ -173,7 +177,11 @@ private fun Avatar(letter: String) {
 }
 
 @Composable
-private fun HomeEmpty(onAdd: () -> Unit, onLibrary: () -> Unit) {
+private fun HomeEmpty(
+    onAdd: () -> Unit,
+    onLibrary: () -> Unit,
+    onSeedMock: (() -> Unit)? = null,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -208,6 +216,19 @@ private fun HomeEmpty(onAdd: () -> Unit, onLibrary: () -> Unit) {
                 .clickable(onClick = onLibrary)
                 .padding(vertical = 4.dp),
         )
+        if (onSeedMock != null) {
+            Spacer(Modifier.height(28.dp))
+            Text(
+                text = "DEBUG · seed mock device",
+                style = Seqaya.type.labelCaps.copy(
+                    color = Seqaya.colors.textTertiary,
+                    fontSize = 10.sp,
+                ),
+                modifier = Modifier
+                    .clickable(onClick = onSeedMock)
+                    .padding(vertical = 6.dp),
+            )
+        }
     }
 }
 
