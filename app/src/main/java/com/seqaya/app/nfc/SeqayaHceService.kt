@@ -30,7 +30,16 @@ class SeqayaHceService : HostApduService() {
         }
 
         if (ApduProtocol.isPullByte(commandApdu)) {
-            return session.nextChunk() ?: ApduProtocol.OK_STATUS
+            val chunk = session.nextChunk()
+            if (chunk != null) return chunk
+            // nextChunk() returns null either when the transfer just completed (Transferred)
+            // or when the session is idle/stray. Only reply 90 00 in the completed case;
+            // stray polls get NACK so we don't silently acknowledge unrelated NFC activity.
+            return if (session.status.value is ProvisioningSession.Status.Transferred) {
+                ApduProtocol.OK_STATUS
+            } else {
+                ApduProtocol.NACK_STATUS
+            }
         }
 
         Log.w(TAG, "Unknown APDU: ${commandApdu.joinToString(" ") { "%02X".format(it) }}")

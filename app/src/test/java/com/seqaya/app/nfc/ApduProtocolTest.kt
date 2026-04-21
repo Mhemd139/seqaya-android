@@ -186,4 +186,55 @@ class ApduProtocolTest {
     @Test fun `isPullByte rejects multi-byte arrays`() {
         assertFalse(ApduProtocol.isPullByte(byteArrayOf(0x02, 0x00)))
     }
+
+    @Test(expected = ApduProtocol.DelimiterInFieldException::class)
+    fun `Add rejects SSID containing dollar sign`() {
+        ApduProtocol.Command.Add(
+            ssid = "Cafe\$TPMO", password = "p", userId = "u",
+            serial = "SQ-A3F72B91", targetMoisture = 60, holdMode = false,
+        )
+    }
+
+    @Test(expected = ApduProtocol.DelimiterInFieldException::class)
+    fun `Add rejects password containing dollar sign`() {
+        ApduProtocol.Command.Add(
+            ssid = "w", password = "pa\$\$word", userId = "u",
+            serial = "SQ-A3F72B91", targetMoisture = 60, holdMode = false,
+        )
+    }
+
+    @Test(expected = ApduProtocol.DelimiterInFieldException::class)
+    fun `Add rejects userId containing dollar sign`() {
+        ApduProtocol.Command.Add(
+            ssid = "w", password = "p", userId = "\$foo",
+            serial = "SQ-A3F72B91", targetMoisture = 60, holdMode = false,
+        )
+    }
+
+    @Test(expected = ApduProtocol.DelimiterInFieldException::class)
+    fun `Reprogram rejects password containing dollar sign`() {
+        ApduProtocol.Command.Reprogram(
+            ssid = "w", password = "ba\$d", userId = "u",
+            serial = "SQ-A3F72B91", targetMoisture = 60, holdMode = false,
+            keepHistory = true,
+        )
+    }
+
+    @Test fun `fieldContainsDelimiter detects dollar sign and nothing else`() {
+        assertTrue(ApduProtocol.fieldContainsDelimiter("MyNet\$work"))
+        assertTrue(ApduProtocol.fieldContainsDelimiter("\$"))
+        assertFalse(ApduProtocol.fieldContainsDelimiter("Cafe_TPMO"))
+        assertFalse(ApduProtocol.fieldContainsDelimiter(""))
+    }
+
+    @Test fun `DelimiterInFieldException exposes the offending field name`() {
+        val ex = try {
+            ApduProtocol.Command.Add(
+                ssid = "w", password = "p", userId = "u\$x",
+                serial = "SQ-A3F72B91", targetMoisture = 60, holdMode = false,
+            )
+            null
+        } catch (e: ApduProtocol.DelimiterInFieldException) { e }
+        assertEquals("userId", ex?.field)
+    }
 }

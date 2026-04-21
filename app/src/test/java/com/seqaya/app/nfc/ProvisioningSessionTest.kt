@@ -157,17 +157,45 @@ class ProvisioningSessionTest {
         }
     }
 
-    @Test fun `timeout does not fire if SELECT AID received before window`() = runTest {
+    @Test fun `SELECT AID re-arms the timeout clock`() = runTest {
+        // Arm, wait 10s, receive SELECT AID (timer restarts), wait 29.9s more.
+        // Total elapsed = 39.9s; only 29.9s since the re-arm so the timer hasn't fired.
+        // Verifying: if the timer had NOT been re-armed, the original 30s one would have
+        // fired at virtual time 30s and we'd be Failed(Timeout) here.
         val dispatcher = StandardTestDispatcher(testScheduler)
         val sut = ProvisioningSession(dispatcher = dispatcher, timeoutMs = 30_000)
         sut.arm(locate)
         advanceTimeBy(10_000)
         sut.onSelectAid()
-        advanceTimeBy(25_000)
-        advanceUntilIdle()
+        advanceTimeBy(29_900)
 
-        // Should be Transferring, not Failed
-        assertTrue(sut.status.value is ProvisioningSession.Status.Transferring)
+        assertTrue(
+            "expected Transferring, got ${sut.status.value}",
+            sut.status.value is ProvisioningSession.Status.Transferring,
+        )
+    }
+
+    @Test fun `Transferring state also times out if firmware stops polling`() = runTest {
+        // Firmware sent SELECT AID but then stalled without polling a single chunk.
+        // The session must not wedge — it should surface Failed(Timeout) so the UI
+        // can offer a retry.
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val sut = ProvisioningSession(dispatcher = dispatcher, timeoutMs = 30_000)
+        sut.status.test {
+            assertTrue(awaitItem() is ProvisioningSession.Status.Idle)
+            sut.arm(locate)
+            assertTrue(awaitItem() is ProvisioningSession.Status.ReadyToTap)
+            sut.onSelectAid()
+            assertTrue(awaitItem() is ProvisioningSession.Status.Transferring)
+            advanceTimeBy(30_001)
+            val timedOut = awaitItem()
+            assertTrue("got $timedOut", timedOut is ProvisioningSession.Status.Failed)
+            assertEquals(
+                ProvisioningSession.FailureReason.Timeout,
+                (timedOut as ProvisioningSession.Status.Failed).reason,
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test fun `dismiss returns to Idle from any state`() = runTest {

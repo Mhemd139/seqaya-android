@@ -1,6 +1,9 @@
 package com.seqaya.app.ui.provisioning
 
+import android.Manifest
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -42,12 +45,22 @@ fun AddDeviceScreen(
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
 
+    // Real launcher for ACCESS_FINE_LOCATION — the VM emits RequestLocationPermission when
+    // it enters the Wi-Fi step and can't prefill the SSID because the permission is denied.
+    // On grant, the VM re-runs prefill via onLocationPermissionGranted.
+    val locationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) viewModel.onLocationPermissionGranted()
+    }
+
     LaunchedEffect(Unit) {
         viewModel.events.collect { ev ->
             when (ev) {
                 is AddDeviceEvent.Finished -> onFinish(ev.deviceSerial, ev.nickname)
                 AddDeviceEvent.Cancelled -> onCancel()
-                AddDeviceEvent.RequestLocationPermission -> { /* handled host-side */ }
+                AddDeviceEvent.RequestLocationPermission ->
+                    locationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             }
         }
     }

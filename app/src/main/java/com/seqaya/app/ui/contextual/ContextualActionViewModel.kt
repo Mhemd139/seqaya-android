@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -75,15 +77,15 @@ class ContextualActionViewModel @Inject constructor(
     val events = _events.receiveAsFlow()
 
     init {
-        // Populate nickname from the device repo (one-shot).
+        // Populate nickname from the device repo once, then drop the subscription.
+        // The nickname for a running contextual flow is stable for the flow's lifetime —
+        // holding a long-lived collector on observeDevices() is wasted work.
         viewModelScope.launch {
-            deviceRepository.observeDevices()
+            val device = deviceRepository.observeDevices()
                 .map { list -> list.firstOrNull { it.serial == serial } }
-                .collect { device ->
-                    if (device != null) {
-                        _ui.update { it.copy(deviceNickname = device.nickname ?: "your device") }
-                    }
-                }
+                .filterNotNull()
+                .first()
+            _ui.update { it.copy(deviceNickname = device.nickname ?: "your device") }
         }
         viewModelScope.launch {
             session.status.collect { status ->

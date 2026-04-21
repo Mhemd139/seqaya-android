@@ -34,6 +34,20 @@ object ApduProtocol {
     /** Canonical SELECT AID APDU from firmware: 00 A4 04 00 06 <AID> 00. */
     private val SELECT_AID_HEADER = byteArrayOf(0x00, 0xA4.toByte(), 0x04, 0x00, 0x06)
 
+    /**
+     * The firmware parser splits payload on literal `$`. Any field that itself contains `$`
+     * shifts every following field position, corrupting the serial / moisture / hold-mode
+     * writes to NVS. Since firmware does not unescape, we reject any string field carrying
+     * `$` at construction time and surface the error at the UI boundary (Wi-Fi step).
+     */
+    class DelimiterInFieldException(val field: String) :
+        IllegalArgumentException("Field '$field' contains '\$' which is reserved as the APDU delimiter. Rejecting to avoid firmware parse corruption.")
+
+    private fun String.requireNoDelimiter(fieldName: String): String {
+        if (contains('$')) throw DelimiterInFieldException(fieldName)
+        return this
+    }
+
     sealed class Command(val letter: Char) {
         protected abstract fun body(): String
 
@@ -47,6 +61,13 @@ object ApduProtocol {
             val targetMoisture: Int,
             val holdMode: Boolean,
         ) : Command('A') {
+            init {
+                ssid.requireNoDelimiter("ssid")
+                password.requireNoDelimiter("password")
+                userId.requireNoDelimiter("userId")
+                serial.requireNoDelimiter("serial")
+            }
+
             override fun body() = buildString {
                 append(ssid); append('$')
                 append(password); append('$')
@@ -74,6 +95,13 @@ object ApduProtocol {
             val holdMode: Boolean,
             val keepHistory: Boolean,
         ) : Command('R') {
+            init {
+                ssid.requireNoDelimiter("ssid")
+                password.requireNoDelimiter("password")
+                userId.requireNoDelimiter("userId")
+                serial.requireNoDelimiter("serial")
+            }
+
             override fun body() = buildString {
                 append(ssid); append('$')
                 append(password); append('$')
@@ -93,6 +121,9 @@ object ApduProtocol {
             override fun body() = ""
         }
     }
+
+    /** Convenience predicate for UI validation (Wi-Fi step). */
+    fun fieldContainsDelimiter(value: String): Boolean = value.contains('$')
 
     /**
      * Split [payload] into chunks that firmware's poll loop can reassemble.

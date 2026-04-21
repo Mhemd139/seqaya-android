@@ -12,7 +12,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import android.content.Context
+import android.view.accessibility.AccessibilityManager
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.seqaya.app.ui.theme.Seqaya
@@ -31,7 +34,12 @@ fun NfcWaves(
     color: Color = Seqaya.colors.accentGreen,
     active: Boolean = true,
 ) {
-    if (!active) {
+    // Screen-reader users generally benefit from suppressed motion — treat touch-exploration
+    // as reduce-motion since Android doesn't expose a dedicated reduce-motion flag.
+    val context = LocalContext.current
+    val reduceMotion = (context.getSystemService(Context.ACCESSIBILITY_SERVICE)
+        as? AccessibilityManager)?.isTouchExplorationEnabled == true
+    if (!active || reduceMotion) {
         Canvas(modifier = modifier.size(size)) {
             val center = Offset(this.size.width / 2f, this.size.height / 2f)
             drawCircle(

@@ -1,6 +1,7 @@
 package com.seqaya.app.wifi
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.wifi.WifiManager
@@ -56,6 +57,11 @@ class CurrentWifiProvider @Inject constructor(
      * 2.4-GHz networks visible in the last scan, sorted by signal strength.
      * Returns empty list if permission denied or scan unavailable.
      */
+    // Lint's MissingPermission check can't reason through hasLocationPermission,
+    // but we do guard before touching scanResults. SecurityException is caught as
+    // belt-and-suspenders in case the permission is revoked between the check and
+    // the call on older API levels.
+    @SuppressLint("MissingPermission")
     @Suppress("DEPRECATION") // WifiManager.startScan / scanResults deprecated on API 28+
     fun scanResultSsids(): List<String> {
         if (!hasLocationPermission) return emptyList()

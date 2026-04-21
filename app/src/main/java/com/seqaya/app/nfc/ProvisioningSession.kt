@@ -31,7 +31,7 @@ import javax.inject.Singleton
 @Singleton
 class ProvisioningSession internal constructor(
     dispatcher: CoroutineDispatcher,
-    private val timeoutMs: Long,
+    private val timeoutMs: Long = 30_000L,
 ) {
 
     @Inject constructor() : this(Dispatchers.Main, 30_000L)
@@ -66,6 +66,9 @@ class ProvisioningSession internal constructor(
         val current = _status.value
         if (current !is Status.ReadyToTap) return false
         _status.value = Status.Transferring(current.command, sentChunks = 0, totalChunks = pendingChunks.size)
+        // Re-arm the timeout so a stalled transfer (firmware stops polling without onDeactivated)
+        // still reaches a terminal Failed(Timeout) state instead of wedging the singleton.
+        scheduleTimeout()
         return true
     }
 
@@ -139,8 +142,11 @@ class ProvisioningSession internal constructor(
         cancelTimeout()
         timeoutJob = scope.launch {
             delay(timeoutMs)
-            if (_status.value is Status.ReadyToTap) {
-                _status.value = Status.Failed(FailureReason.Timeout)
+            when (_status.value) {
+                is Status.ReadyToTap, is Status.Transferring -> {
+                    _status.value = Status.Failed(FailureReason.Timeout)
+                }
+                else -> { /* terminal state reached before timeout — ignore */ }
             }
         }
     }

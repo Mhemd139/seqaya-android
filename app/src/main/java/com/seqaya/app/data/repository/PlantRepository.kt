@@ -28,7 +28,7 @@ class PlantRepository(
 ) {
     suspend fun fetchAll(): List<Plant> = runCatching {
         val remote = supabase.from("plants")
-            .select(columns = PLANT_COLUMNS)
+            .select(columns = PLANT_COLUMNS) { limit(100) }
             .decodeList<PlantDto>()
         if (remote.isEmpty()) {
             Log.w(TAG, "Supabase plants table is empty — using bundled defaults")
