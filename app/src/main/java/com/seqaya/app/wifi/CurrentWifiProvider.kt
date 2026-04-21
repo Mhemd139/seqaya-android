@@ -1,0 +1,76 @@
+package com.seqaya.app.wifi
+
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.net.wifi.WifiManager
+import androidx.core.content.ContextCompat
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * Thin wrapper around [WifiManager] for the Add Device wizard's SSID prefill + picker.
+ *
+ * Android's security model forbids reading saved Wi-Fi passwords — this is an
+ * immutable platform constraint, not something we work around. We only read:
+ *  - the SSID of the currently-connected network (for prefill)
+ *  - scan results (when the user wants a different network)
+ *
+ * Both require [Manifest.permission.ACCESS_FINE_LOCATION] on API 29+. If the
+ * permission is denied, [currentSsid] returns null and the wizard falls back
+ * to an empty field the user fills manually.
+ */
+@Singleton
+class CurrentWifiProvider @Inject constructor(
+    @ApplicationContext private val context: Context,
+) {
+    private val wifiManager = context.applicationContext
+        .getSystemService(Context.WIFI_SERVICE) as WifiManager
+
+    /** True if we hold ACCESS_FINE_LOCATION at runtime (required for SSID access). */
+    val hasLocationPermission: Boolean
+        get() = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_FINE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Returns the SSID of the currently-connected Wi-Fi network, stripped of
+     * quote wrapping, or null if:
+     *   - location permission is denied
+     *   - Wi-Fi is off
+     *   - phone is not connected to a network
+     *   - SSID is hidden/unavailable
+     */
+    fun currentSsid(): String? {
+        if (!hasLocationPermission) return null
+        @Suppress("DEPRECATION")
+        val info = wifiManager.connectionInfo ?: return null
+        val raw = info.ssid ?: return null
+        if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
+        // WifiManager returns SSIDs wrapped in quotes: "MyNetwork" — strip them.
+        return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * 2.4-GHz networks visible in the last scan, sorted by signal strength.
+     * Returns empty list if permission denied or scan unavailable.
+     */
+    @Suppress("DEPRECATION") // WifiManager.startScan / scanResults deprecated on API 28+
+    fun scanResultSsids(): List<String> {
+        if (!hasLocationPermission) return emptyList()
+        return runCatching {
+            wifiManager.scanResults
+                .filter { it.frequency in TWO_POINT_FOUR_GHZ_RANGE }
+                .filter { !it.SSID.isNullOrBlank() }
+                .sortedByDescending { it.level }
+                .map { it.SSID }
+                .distinct()
+        }.getOrDefault(emptyList())
+    }
+
+    private companion object {
+        const val UNKNOWN_SSID = "<unknown ssid>"
+        val TWO_POINT_FOUR_GHZ_RANGE = 2400..2500 // MHz
+    }
+}

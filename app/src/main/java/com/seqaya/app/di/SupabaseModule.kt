@@ -5,6 +5,7 @@ import com.seqaya.app.data.remote.ConnectivityObserver
 import com.seqaya.app.data.remote.SupabaseClientProvider
 import com.seqaya.app.data.repository.AuthRepository
 import com.seqaya.app.data.repository.DeviceRepository
+import com.seqaya.app.data.repository.PlantRepository
 import com.seqaya.app.data.repository.ReadingRepository
 import com.seqaya.app.data.local.DeviceDao
 import com.seqaya.app.data.local.ReadingDao
@@ -45,4 +46,9 @@ object SupabaseModule {
     @Singleton
     fun provideReadingRepository(supabase: SupabaseClient, dao: ReadingDao): ReadingRepository =
         ReadingRepository(supabase, dao)
+
+    @Provides
+    @Singleton
+    fun providePlantRepository(supabase: SupabaseClient): PlantRepository =
+        PlantRepository(supabase)
 }
