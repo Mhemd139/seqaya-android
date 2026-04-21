@@ -24,6 +24,7 @@ import com.seqaya.app.ui.components.PaperGrain
 import com.seqaya.app.ui.device.DeviceDetailScreen
 import com.seqaya.app.ui.home.HomeScreen
 import com.seqaya.app.ui.navigation.SeqayaBottomBar
+import com.seqaya.app.ui.contextual.ContextualActionScreen
 import com.seqaya.app.ui.provisioning.AddDeviceScreen
 import com.seqaya.app.ui.navigation.TopLevelDestination
 import com.seqaya.app.ui.plants.LibraryPlaceholderScreen
@@ -110,6 +111,21 @@ private fun SignedInRoot() {
                             navController.navigate("device/$serial") { launchSingleTop = true }
                         },
                         onCancel = { navController.popBackStack() },
+                    )
+                }
+                composable(
+                    route = "contextual/{action}/{serial}",
+                    arguments = listOf(
+                        navArgument("action") { type = NavType.StringType },
+                        navArgument("serial") { type = NavType.StringType },
+                    ),
+                ) {
+                    ContextualActionScreen(
+                        onDismiss = { navController.popBackStack() },
+                        onChainToWetMapping = { serial ->
+                            navController.popBackStack()
+                            navController.navigate("contextual/WetMap/$serial")
+                        },
                     )
                 }
             }
