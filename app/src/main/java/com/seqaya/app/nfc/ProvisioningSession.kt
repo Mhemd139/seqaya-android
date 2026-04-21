@@ -29,10 +29,12 @@ import javax.inject.Singleton
  * [CoroutineScope(dispatcher).launch] — see SeqayaHceService).
  */
 @Singleton
-class ProvisioningSession @Inject constructor(
-    dispatcher: CoroutineDispatcher = Dispatchers.Main,
-    private val timeoutMs: Long = 30_000L,
+class ProvisioningSession internal constructor(
+    dispatcher: CoroutineDispatcher,
+    private val timeoutMs: Long,
 ) {
+
+    @Inject constructor() : this(Dispatchers.Main, 30_000L)
 
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
 
@@ -46,6 +48,7 @@ class ProvisioningSession @Inject constructor(
     private var cursor: Int = 0
     private var timeoutJob: Job? = null
 
+    @Synchronized
     fun arm(command: ApduProtocol.Command) {
         cancelTimeout()
         pendingChunks = ApduProtocol.chunkResponses(command.encode())
@@ -58,6 +61,7 @@ class ProvisioningSession @Inject constructor(
      * Firmware sent the SELECT AID APDU. Returns true if we accept (armed) or false
      * if this session is not ready — [SeqayaHceService] must return NACK_STATUS on false.
      */
+    @Synchronized
     fun onSelectAid(): Boolean {
         val current = _status.value
         if (current !is Status.ReadyToTap) return false
@@ -72,6 +76,7 @@ class ProvisioningSession @Inject constructor(
      * Caller is expected to return [ApduProtocol.OK_STATUS] to firmware when this
      * returns null so the session handshake closes cleanly.
      */
+    @Synchronized
     fun nextChunk(): ByteArray? {
         val current = _status.value
         if (current !is Status.Transferring) return null
@@ -97,6 +102,7 @@ class ProvisioningSession @Inject constructor(
      *   - post-transfer (Transferred, Success): expected, no-op
      *   - idle/ready: no active transfer, no-op
      */
+    @Synchronized
     fun onDeactivated(@Suppress("UNUSED_PARAMETER") reason: Int) {
         if (_status.value is Status.Transferring) {
             cancelTimeout()
@@ -105,6 +111,7 @@ class ProvisioningSession @Inject constructor(
     }
 
     /** Caller confirmed the firmware processed the command (e.g., saw Supabase event). */
+    @Synchronized
     fun confirmSuccess() {
         val current = _status.value
         if (current is Status.Transferred) {
@@ -113,12 +120,14 @@ class ProvisioningSession @Inject constructor(
     }
 
     /** Caller reports a specific failure surfaced outside the NFC layer (e.g., Wi-Fi fail). */
+    @Synchronized
     fun reportFailure(reason: FailureReason) {
         cancelTimeout()
         _status.value = Status.Failed(reason)
     }
 
     /** Reset to Idle — cancels timeout, clears pending chunks. Safe from any state. */
+    @Synchronized
     fun dismiss() {
         cancelTimeout()
         pendingChunks = emptyList()
