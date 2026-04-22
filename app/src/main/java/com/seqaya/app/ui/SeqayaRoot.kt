@@ -101,8 +101,16 @@ private fun SignedInRoot() {
                 composable(
                     route = "device/{serial}",
                     arguments = listOf(navArgument("serial") { type = NavType.StringType }),
-                ) {
-                    DeviceDetailScreen(onBack = { navController.popBackStack() })
+                ) { entry ->
+                    val serial = entry.arguments?.getString("serial").orEmpty()
+                    DeviceDetailScreen(
+                        onBack = { navController.popBackStack() },
+                        onContextualAction = { action ->
+                            if (serial.isNotEmpty()) {
+                                navController.navigate("contextual/$action/$serial")
+                            }
+                        },
+                    )
                 }
                 composable("addDevice") {
                     AddDeviceScreen(

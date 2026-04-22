@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
@@ -60,11 +61,7 @@ fun HomeScreen(
             ErrorBanner(message = message, onDismiss = viewModel::dismissError)
         }
 
-        HomeTopBar(
-            showPlus = !state.isEmpty,
-            avatarLetter = state.avatarLetter,
-            onAddClick = onAddDevice,
-        )
+        HomeTopBar(avatarLetter = state.avatarLetter)
 
         when {
             state.isLoading -> Spacer(Modifier.fillMaxSize())
@@ -77,6 +74,7 @@ fun HomeScreen(
                 state = state,
                 onReviewThirsty = showComingSoon,
                 onDeviceClick = onDeviceClick,
+                onAddDevice = onAddDevice,
             )
         }
     }
@@ -118,7 +116,7 @@ private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun HomeTopBar(showPlus: Boolean, avatarLetter: String, onAddClick: () -> Unit) {
+private fun HomeTopBar(avatarLetter: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -130,30 +128,6 @@ private fun HomeTopBar(showPlus: Boolean, avatarLetter: String, onAddClick: () -
             style = Seqaya.type.wordmark.copy(color = Seqaya.colors.textPrimary),
             modifier = Modifier.weight(1f),
         )
-        if (showPlus) {
-            val addDescription = stringResource(R.string.home_top_add_content_description)
-            Box(
-                modifier = Modifier
-                    .minimumInteractiveComponentSize()
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = onAddClick)
-                    .semantics {
-                        role = Role.Button
-                        contentDescription = addDescription
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "+",
-                    style = Seqaya.type.hM.copy(
-                        color = Seqaya.colors.textPrimary,
-                        fontWeight = FontWeight.Normal,
-                    ),
-                )
-            }
-            Spacer(Modifier.size(6.dp))
-        }
         Avatar(letter = avatarLetter)
     }
 }
@@ -237,26 +211,74 @@ private fun HomePopulated(
     state: HomeUiState,
     onReviewThirsty: () -> Unit,
     onDeviceClick: (String) -> Unit,
+    onAddDevice: () -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        state.thirstyDevice?.let { thirsty ->
-            item {
-                AttentionBanner(
-                    thirstyDeviceName = thirsty.displayName,
-                    onReview = { onDeviceClick(thirsty.device.serial) },
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 20.dp, end = 20.dp, top = 4.dp, bottom = 96.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            state.thirstyDevice?.let { thirsty ->
+                item {
+                    AttentionBanner(
+                        thirstyDeviceName = thirsty.displayName,
+                        onReview = { onDeviceClick(thirsty.device.serial) },
+                    )
+                }
+            }
+            items(items = state.devices, key = { it.device.id }) { device ->
+                DeviceCard(
+                    item = device,
+                    onClick = { onDeviceClick(device.device.serial) },
                 )
             }
         }
-        items(items = state.devices, key = { it.device.id }) { device ->
-            DeviceCard(
-                item = device,
-                onClick = { onDeviceClick(device.device.serial) },
-            )
-        }
+        AddPlantFab(
+            onClick = onAddDevice,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 20.dp, bottom = 16.dp),
+        )
+    }
+}
+
+@Composable
+private fun AddPlantFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.home_top_add_content_description)
+    Row(
+        modifier = modifier
+            .minimumInteractiveComponentSize()
+            .height(56.dp)
+            .clip(RoundedCornerShape(100.dp))
+            .background(Seqaya.colors.accentGreen)
+            .clickable(onClick = onClick)
+            .semantics {
+                role = Role.Button
+                contentDescription = description
+            }
+            .padding(horizontal = 22.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "+",
+            style = Seqaya.type.hM.copy(
+                color = Seqaya.colors.bgCream,
+                fontWeight = FontWeight.Normal,
+                fontSize = 22.sp,
+            ),
+        )
+        Spacer(Modifier.size(10.dp))
+        Text(
+            text = stringResource(R.string.home_add_fab_label),
+            style = Seqaya.type.body.copy(
+                color = Seqaya.colors.bgCream,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+            ),
+        )
     }
 }
 
