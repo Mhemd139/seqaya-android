@@ -155,6 +155,19 @@ class AddDeviceWizardViewModel @Inject constructor(
         // Reuse the serial across retries so the physical device and the cloud don't
         // diverge if the first attempt burned it into firmware NVS but cloud sync failed.
         val serial = ui.serial ?: ApduProtocol.generateSerial()
+
+        // Don't clobber an in-flight NFC flow belonging to someone else (e.g. a
+        // Locate/Hold/Dry/Wet from Device Detail). Allow re-arming only if the
+        // active session is this wizard's own pending Add with the same serial.
+        val active = activeSessionCommand()
+        val ownsSession = active is ApduProtocol.Command.Add && active.serial == serial
+        if (active != null && !ownsSession) {
+            _ui.update {
+                it.copy(error = "Another NFC action is in progress. Finish it before adding a device.")
+            }
+            return
+        }
+
         hasInsertedDevice = false
         _ui.update {
             it.copy(
@@ -175,6 +188,15 @@ class AddDeviceWizardViewModel @Inject constructor(
         )
     }
 
+    private fun activeSessionCommand(): ApduProtocol.Command? =
+        when (val current = session.status.value) {
+            is ProvisioningSession.Status.ReadyToTap -> current.command
+            is ProvisioningSession.Status.Transferring -> current.command
+            is ProvisioningSession.Status.Transferred -> current.command
+            is ProvisioningSession.Status.Success -> current.command
+            else -> null
+        }
+
     fun cancel() {
         dismissOwnedSession()
         viewModelScope.launch { _events.send(AddDeviceEvent.Cancelled) }
@@ -186,14 +208,7 @@ class AddDeviceWizardViewModel @Inject constructor(
      * must not tear down an in-flight Locate/Hold/Map from a different flow.
      */
     private fun dismissOwnedSession() {
-        val current = session.status.value
-        val ownedCommand = when (current) {
-            is ProvisioningSession.Status.ReadyToTap -> current.command
-            is ProvisioningSession.Status.Transferring -> current.command
-            is ProvisioningSession.Status.Transferred -> current.command
-            is ProvisioningSession.Status.Success -> current.command
-            else -> null
-        }
+        val ownedCommand = activeSessionCommand()
         val expectedSerial = _ui.value.serial
         val isOurs = ownedCommand is ApduProtocol.Command.Add &&
             ownedCommand.serial == expectedSerial
@@ -215,6 +230,9 @@ class AddDeviceWizardViewModel @Inject constructor(
         val ui = _ui.value
         val serial = ui.serial ?: return
         val plant = ui.selectedPlant ?: return
+        // Match the clamp applied in advanceToTap() so the value persisted to
+        // Supabase equals the value burned into firmware NVS via the APDU payload.
+        val targetMoisture = (plant.moistureTargetPercent ?: DEFAULT_TARGET).coerceIn(0, 100)
         hasInsertedDevice = true
 
         viewModelScope.launch {
@@ -222,7 +240,7 @@ class AddDeviceWizardViewModel @Inject constructor(
                 serial = serial,
                 nickname = plant.commonName ?: plant.scientificName,
                 plantId = plant.id,
-                targetMoisturePercent = plant.moistureTargetPercent ?: DEFAULT_TARGET,
+                targetMoisturePercent = targetMoisture,
             ).onSuccess { device ->
                 session.confirmSuccess()
                 _ui.update {
