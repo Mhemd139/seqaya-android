@@ -42,9 +42,12 @@ class DebugSeeder @Inject constructor(
 
         val now = Instant.now()
         val readings = (0 until READINGS_COUNT).map { i ->
+            val moisture = syntheticMoisture(i)
             MockReadingPayload(
                 deviceSerial = serial,
-                soilMoisturePercent = syntheticMoisture(i),
+                readingType = READING_TYPE_REGULAR,
+                soilMoisturePercent = moisture,
+                sensorRawValue = rawFromMoisture(moisture),
                 isValveOpen = i % VALVE_PERIOD_MIN in 0..2,
                 isWateringPaused = false,
                 recordedAt = now.minusSeconds(i.toLong() * 60L).toString(),
@@ -67,10 +70,16 @@ class DebugSeeder @Inject constructor(
         return (base + noise).toInt().coerceIn(0, 100)
     }
 
+    // Capacitive soil sensor: raw ADC is inversely correlated to moisture %.
+    private fun rawFromMoisture(moisturePct: Int): Int =
+        RAW_AIR - moisturePct * (RAW_AIR - RAW_SATURATED) / 100
+
     @Serializable
     private data class MockReadingPayload(
         @SerialName("device_serial") val deviceSerial: String,
+        @SerialName("reading_type") val readingType: String,
         @SerialName("soil_moisture_percent") val soilMoisturePercent: Int,
+        @SerialName("sensor_raw_value") val sensorRawValue: Int,
         @SerialName("is_valve_open") val isValveOpen: Boolean,
         @SerialName("is_watering_paused") val isWateringPaused: Boolean,
         @SerialName("recorded_at") val recordedAt: String,
@@ -82,5 +91,8 @@ class DebugSeeder @Inject constructor(
         const val READINGS_COUNT = 2880 // 48 h at 1 reading/min
         const val BATCH_SIZE = 500
         const val VALVE_PERIOD_MIN = 180 // valve opens briefly every ~3 h
+        const val READING_TYPE_REGULAR = "REGULAR"
+        const val RAW_AIR = 3000      // dry: raw ADC at the top of observed band
+        const val RAW_SATURATED = 800 // wet: raw ADC at the bottom of observed band
     }
 }
