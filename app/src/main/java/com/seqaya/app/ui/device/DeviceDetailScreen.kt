@@ -121,7 +121,6 @@ fun DeviceDetailScreen(
             DeviceActionRow(
                 holdActive = state.device?.holdModeActive == true,
                 enabled = state.device != null,
-                onLocate = { onContextualAction("Locate") },
                 onHoldToggle = { onContextualAction("HoldToggle") },
                 onDryMap = { onContextualAction("DryMap") },
                 onWetMap = { onContextualAction("WetMap") },

@@ -23,8 +23,6 @@
     <string name="cancel">Cancel</string>
 
     <!-- Device action row -->
-    <string name="device_action_locate">Find device</string>
-    <string name="device_action_locate_description">Find your plant — the device will blink when you tap it</string>
     <string name="device_action_pause">Pause watering</string>
     <string name="device_action_pause_description">Pause automatic watering until you resume it</string>
     <string name="device_action_resume">Resume watering</string>

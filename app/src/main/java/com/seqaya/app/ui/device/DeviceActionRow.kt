@@ -36,7 +36,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.seqaya.app.R
-import com.seqaya.app.ui.components.DeviceIllustration
 import com.seqaya.app.ui.components.SensorIllustration
 import com.seqaya.app.ui.theme.Seqaya
 
@@ -44,7 +43,6 @@ import com.seqaya.app.ui.theme.Seqaya
 fun DeviceActionRow(
     holdActive: Boolean,
     enabled: Boolean,
-    onLocate: () -> Unit,
     onHoldToggle: () -> Unit,
     onDryMap: () -> Unit,
     onWetMap: () -> Unit,
@@ -58,15 +56,6 @@ fun DeviceActionRow(
             .clip(RoundedCornerShape(14.dp))
             .border(1.dp, Seqaya.colors.border, RoundedCornerShape(14.dp)),
     ) {
-        ActionCell(
-            icon = { DeviceIllustration(size = 30.dp, withHalo = true) },
-            label = stringResource(R.string.device_action_locate),
-            description = stringResource(R.string.device_action_locate_description),
-            enabled = enabled,
-            onClick = onLocate,
-            modifier = Modifier.weight(1f),
-        )
-        CellDivider()
         ActionCell(
             icon = { HoldGlyph(playing = holdActive) },
             label = stringResource(
