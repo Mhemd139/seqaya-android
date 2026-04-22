@@ -30,4 +30,7 @@
 
     <!-- Error banner -->
     <string name="error_banner_dismiss">Dismiss</string>
+
+    <!-- Bottom-right FAB on populated home -->
+    <string name="home_add_fab_label">Add a plant</string>
 </resources>

@@ -21,4 +21,14 @@
     <string name="device_state_unknown">Awaiting data</string>
     <string name="device_target_label">Target %1$d%%</string>
     <string name="cancel">Cancel</string>
+
+    <!-- Device action row -->
+    <string name="device_action_pause">Pause watering</string>
+    <string name="device_action_pause_description">Pause automatic watering until you resume it</string>
+    <string name="device_action_resume">Resume watering</string>
+    <string name="device_action_resume_description">Resume automatic watering</string>
+    <string name="device_action_calibrate_dry">Set dry</string>
+    <string name="device_action_calibrate_dry_description">Calibrate the sensor in dry air, then tap the device</string>
+    <string name="device_action_calibrate_wet">Set wet</string>
+    <string name="device_action_calibrate_wet_description">Place the sensor in wet soil, then tap the device</string>
 </resources>

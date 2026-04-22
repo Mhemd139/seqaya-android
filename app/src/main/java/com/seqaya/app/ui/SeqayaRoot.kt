@@ -24,6 +24,8 @@ import com.seqaya.app.ui.components.PaperGrain
 import com.seqaya.app.ui.device.DeviceDetailScreen
 import com.seqaya.app.ui.home.HomeScreen
 import com.seqaya.app.ui.navigation.SeqayaBottomBar
+import com.seqaya.app.ui.contextual.ContextualActionScreen
+import com.seqaya.app.ui.provisioning.AddDeviceScreen
 import com.seqaya.app.ui.navigation.TopLevelDestination
 import com.seqaya.app.ui.plants.LibraryPlaceholderScreen
 import com.seqaya.app.ui.scan.ScanPlaceholderScreen
@@ -89,17 +91,50 @@ private fun SignedInRoot() {
                 modifier = Modifier.fillMaxSize(),
             ) {
                 composable(TopLevelDestination.Home.route) {
-                    HomeScreen(onDeviceClick = { serial ->
-                        navController.navigate("device/$serial")
-                    })
+                    HomeScreen(
+                        onDeviceClick = { serial -> navController.navigate("device/$serial") },
+                        onAddDevice = { navController.navigate("addDevice") },
+                    )
                 }
                 composable(TopLevelDestination.Scan.route) { ScanPlaceholderScreen() }
                 composable(TopLevelDestination.Library.route) { LibraryPlaceholderScreen() }
                 composable(
                     route = "device/{serial}",
                     arguments = listOf(navArgument("serial") { type = NavType.StringType }),
+                ) { entry ->
+                    val serial = entry.arguments?.getString("serial").orEmpty()
+                    DeviceDetailScreen(
+                        onBack = { navController.popBackStack() },
+                        onContextualAction = { action ->
+                            if (serial.isNotEmpty()) {
+                                navController.navigate("contextual/$action/$serial")
+                            }
+                        },
+                    )
+                }
+                composable("addDevice") {
+                    AddDeviceScreen(
+                        onFinish = { serial, _ ->
+                            navController.popBackStack()
+                            navController.navigate("device/$serial") { launchSingleTop = true }
+                        },
+                        onCancel = { navController.popBackStack() },
+                    )
+                }
+                composable(
+                    route = "contextual/{action}/{serial}",
+                    arguments = listOf(
+                        navArgument("action") { type = NavType.StringType },
+                        navArgument("serial") { type = NavType.StringType },
+                    ),
                 ) {
-                    DeviceDetailScreen(onBack = { navController.popBackStack() })
+                    ContextualActionScreen(
+                        onDismiss = { navController.popBackStack() },
+                        onChainToWetMapping = { serial ->
+                            navController.popBackStack()
+                            navController.navigate("contextual/WetMap/$serial")
+                        },
+                    )
                 }
             }
         }

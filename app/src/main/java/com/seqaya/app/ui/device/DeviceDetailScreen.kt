@@ -50,6 +50,7 @@ import java.time.Instant
 @Composable
 fun DeviceDetailScreen(
     onBack: () -> Unit,
+    onContextualAction: (String) -> Unit = {},
     viewModel: DeviceDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -113,6 +114,16 @@ fun DeviceDetailScreen(
                 wateringEvents = state.wateringEvents,
                 targetPercent = state.device?.targetMoisturePercent,
                 modifier = Modifier.fillMaxWidth().height(110.dp),
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            DeviceActionRow(
+                holdActive = state.device?.holdModeActive == true,
+                enabled = state.device != null,
+                onHoldToggle = { onContextualAction("HoldToggle") },
+                onDryMap = { onContextualAction("DryMap") },
+                onWetMap = { onContextualAction("WetMap") },
             )
 
             Spacer(Modifier.height(26.dp))
