@@ -3,6 +3,7 @@ package com.seqaya.app.debug
 import android.util.Log
 import com.seqaya.app.data.repository.DeviceRepository
 import com.seqaya.app.data.repository.ReadingRepository
+import com.seqaya.app.nfc.ApduProtocol
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import kotlinx.serialization.SerialName
@@ -26,13 +27,18 @@ class DebugSeeder @Inject constructor(
 ) {
 
     suspend fun seedMockDevice(): Result<String> = runCatching {
-        val serial = "SQ-MOCK%04X".format(Random.nextInt(0, 0x10000))
-        deviceRepository.addDevice(
-            serial = serial,
+        // Match the production serial shape (SQ-{8hex}) so anything that validates
+        // serial format later won't reject mock devices. The full 8 hex gives us
+        // 2^32 namespace too (vs 2^16 with the old SQ-MOCK%04X).
+        val requestedSerial = ApduProtocol.generateSerial()
+        val device = deviceRepository.addDevice(
+            serial = requestedSerial,
             nickname = "Lucy (mock)",
             plantId = null,
             targetMoisturePercent = TARGET,
         ).getOrThrow()
+        // Supabase generates `id` but respects our `serial`; read back the canonical value.
+        val serial = device.serial
 
         val now = Instant.now()
         val readings = (0 until READINGS_COUNT).map { i ->
@@ -50,7 +56,7 @@ class DebugSeeder @Inject constructor(
         readingRepository.refreshWindow(
             serial = serial,
             sinceEpochMs = now.minusSeconds(2L * 24 * 3600).toEpochMilli(),
-        )
+        ).getOrThrow()
         Log.i(TAG, "Seeded $serial with $READINGS_COUNT readings")
         serial
     }.onFailure { Log.e(TAG, "Seed mock device failed", it) }

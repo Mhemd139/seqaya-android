@@ -148,6 +148,10 @@ class AddDeviceWizardViewModel @Inject constructor(
             return
         }
 
+        // Plant rows from Supabase can technically carry out-of-range targets; clamp
+        // before passing to the APDU encoder so a bad row can't crash the wizard.
+        val targetMoisture = (plant.moistureTargetPercent ?: DEFAULT_TARGET).coerceIn(0, 100)
+
         // Reuse the serial across retries so the physical device and the cloud don't
         // diverge if the first attempt burned it into firmware NVS but cloud sync failed.
         val serial = ui.serial ?: ApduProtocol.generateSerial()
@@ -165,15 +169,35 @@ class AddDeviceWizardViewModel @Inject constructor(
                 password = ui.password,
                 userId = userId,
                 serial = serial,
-                targetMoisture = plant.moistureTargetPercent ?: DEFAULT_TARGET,
+                targetMoisture = targetMoisture,
                 holdMode = false,
             ),
         )
     }
 
     fun cancel() {
-        session.dismiss()
+        dismissOwnedSession()
         viewModelScope.launch { _events.send(AddDeviceEvent.Cancelled) }
+    }
+
+    /**
+     * Only dismiss the shared [ProvisioningSession] if its current command is *our*
+     * Add with the serial we armed. A stale wizard VM (not yet garbage-collected)
+     * must not tear down an in-flight Locate/Hold/Map from a different flow.
+     */
+    private fun dismissOwnedSession() {
+        val current = session.status.value
+        val ownedCommand = when (current) {
+            is ProvisioningSession.Status.ReadyToTap -> current.command
+            is ProvisioningSession.Status.Transferring -> current.command
+            is ProvisioningSession.Status.Transferred -> current.command
+            is ProvisioningSession.Status.Success -> current.command
+            else -> null
+        }
+        val expectedSerial = _ui.value.serial
+        val isOurs = ownedCommand is ApduProtocol.Command.Add &&
+            ownedCommand.serial == expectedSerial
+        if (isOurs) session.dismiss()
     }
 
     fun retryTap() {
@@ -231,7 +255,7 @@ class AddDeviceWizardViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        session.dismiss()
+        dismissOwnedSession()
     }
 
     companion object {

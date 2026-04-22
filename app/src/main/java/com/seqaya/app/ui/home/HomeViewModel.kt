@@ -87,13 +87,20 @@ class HomeViewModel @Inject constructor(
         errorFlow.value = null
     }
 
-    /** Debug-only: seed a mock device + 48 h of readings. Gated by BuildConfig.DEBUG in the UI. */
+    /**
+     * Debug-only: seed a mock device + 48 h of readings. The UI gate in HomeScreen
+     * already hides the trigger in release builds, but we defence-in-depth here too
+     * — any accidental release-side caller gets a no-op instead of writing mock data.
+     */
     fun seedMockDevice() {
+        if (!com.seqaya.app.BuildConfig.DEBUG) return
         viewModelScope.launch {
             debugSeeder.seedMockDevice()
                 .onSuccess { serial ->
                     deviceRepository.refresh()
+                        .onFailure { errorFlow.value = "Seeded, but couldn't refresh device list." }
                     readingRepository.refreshLatestFor(listOf(serial))
+                        .onFailure { errorFlow.value = "Seeded, but couldn't refresh readings." }
                 }
                 .onFailure {
                     errorFlow.value = "Seeder failed: ${it.message ?: "unknown"}"
