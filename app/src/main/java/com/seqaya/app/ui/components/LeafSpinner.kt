@@ -18,9 +18,6 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.platform.LocalContext
-import android.content.Context
-import android.view.accessibility.AccessibilityManager
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.seqaya.app.ui.theme.Seqaya
@@ -41,14 +38,7 @@ fun LeafSpinner(
     size: Dp = 48.dp,
     color: Color = Seqaya.colors.accentGreen,
 ) {
-    // Compose's LocalAccessibilityManager is too thin to expose a reduce-motion flag,
-    // and Android itself doesn't have a first-class reduce-motion API. Use the platform
-    // AccessibilityManager's isTouchExplorationEnabled as the closest public-API proxy:
-    // users running a screen-reader / assistive tech are the population most harmed by
-    // animated motion, so degrading to a static state for them is conservative and correct.
-    val context = LocalContext.current
-    val reduceMotion = (context.getSystemService(Context.ACCESSIBILITY_SERVICE)
-        as? AccessibilityManager)?.isTouchExplorationEnabled == true
+    val reduceMotion = rememberReduceMotion()
 
     val rotation = if (reduceMotion) {
         0f

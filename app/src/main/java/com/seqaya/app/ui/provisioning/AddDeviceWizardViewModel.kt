@@ -2,7 +2,6 @@ package com.seqaya.app.ui.provisioning
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.seqaya.app.data.repository.AuthRepository
 import com.seqaya.app.data.repository.DeviceRepository
 import com.seqaya.app.data.repository.PlantRepository
 import com.seqaya.app.domain.model.Plant
@@ -64,7 +63,6 @@ class AddDeviceWizardViewModel @Inject constructor(
     private val wifiProvider: CurrentWifiProvider,
     private val session: ProvisioningSession,
     private val supabase: SupabaseClient,
-    @Suppress("UNUSED_PARAMETER") authRepository: AuthRepository, // available if we need it later
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(AddDeviceUiState())

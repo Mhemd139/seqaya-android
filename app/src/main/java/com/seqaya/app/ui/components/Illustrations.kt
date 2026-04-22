@@ -305,16 +305,22 @@ fun AnimatedWaterRipples(
     size: Dp = 160.dp,
 ) {
     val ink = Seqaya.colors.accentBlue
-    val transition = rememberInfiniteTransition(label = "ripples")
-    val progress = transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2000, easing = LinearOutSlowInEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "ripple",
-    ).value
+    val reduceMotion = rememberReduceMotion()
+
+    val progress = if (reduceMotion) {
+        0f
+    } else {
+        val transition = rememberInfiniteTransition(label = "ripples")
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 2000, easing = LinearOutSlowInEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "ripple",
+        ).value
+    }
 
     Canvas(modifier = modifier.size(size)) {
         val w = this.size.width
@@ -322,6 +328,16 @@ fun AnimatedWaterRipples(
         val center = Offset(w / 2f, this.size.height / 2f)
         val maxR = w * 0.40f
 
+        if (reduceMotion) {
+            // Static ring at mid-radius — conveys "ripple" idea without motion.
+            drawCircle(
+                color = ink.copy(alpha = 0.4f),
+                radius = maxR * 0.5f,
+                center = center,
+                style = Stroke(width = stroke),
+            )
+            return@Canvas
+        }
         listOf(progress, (progress + 0.5f) % 1f).forEach { p ->
             val r = p * maxR
             val alpha = (1f - p) * 0.6f
