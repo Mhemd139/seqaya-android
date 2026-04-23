@@ -37,3 +37,10 @@ client_secret_*.json
 *.swo
 Thumbs.db
 desktop.ini
+
+# IDE
+.vscode/
+
+# Markdown — not tracked in this repo
+*.md
+**/*.md
