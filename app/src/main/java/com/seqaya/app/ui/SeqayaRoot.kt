@@ -29,6 +29,7 @@ import com.seqaya.app.ui.provisioning.AddDeviceScreen
 import com.seqaya.app.ui.navigation.TopLevelDestination
 import com.seqaya.app.ui.plants.LibraryPlaceholderScreen
 import com.seqaya.app.ui.scan.ScanPlaceholderScreen
+import com.seqaya.app.ui.settings.SettingsScreen
 import com.seqaya.app.ui.signin.SignInScreen
 import com.seqaya.app.ui.theme.Seqaya
 
@@ -94,7 +95,11 @@ private fun SignedInRoot() {
                     HomeScreen(
                         onDeviceClick = { serial -> navController.navigate("device/$serial") },
                         onAddDevice = { navController.navigate("addDevice") },
+                        onSettingsClick = { navController.navigate("settings") },
                     )
+                }
+                composable("settings") {
+                    SettingsScreen(onBack = { navController.popBackStack() })
                 }
                 composable(TopLevelDestination.Scan.route) { ScanPlaceholderScreen() }
                 composable(TopLevelDestination.Library.route) { LibraryPlaceholderScreen() }

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Settings</string>
+    <string name="settings_back_description">Back to home</string>
+
+    <string name="settings_profile_heading">SIGNED IN AS</string>
+    <string name="settings_email_label">Email</string>
+    <string name="settings_display_name_label">Name</string>
+
+    <string name="settings_sign_out">Sign out</string>
+    <string name="settings_sign_out_description">Sign out of your Seqaya account on this device</string>
+
+    <string name="settings_delete_account">Delete account</string>
+    <string name="settings_delete_account_description">Permanently remove your account and all associated devices</string>
+
+    <string name="settings_about_heading">ABOUT</string>
+    <string name="settings_version_label">Version %1$s (%2$d)</string>
+    <string name="settings_support_label">Contact support</string>
+    <string name="settings_support_email">Seqaya.io@gmail.com</string>
+
+    <!-- Delete-account dialog -->
+    <string name="delete_confirm_step1_title">Delete your Seqaya account?</string>
+    <string name="delete_confirm_step1_body">This permanently removes your profile and unpairs every device you’ve added. Your devices will no longer appear in the app and will no longer be associated with you. This can’t be undone.</string>
+    <string name="delete_confirm_step1_continue">Continue</string>
+
+    <string name="delete_confirm_step2_title">Type DELETE to confirm</string>
+    <string name="delete_confirm_step2_hint">Type DELETE in capital letters.</string>
+    <string name="delete_confirm_step2_input_label">Confirmation</string>
+    <string name="delete_confirm_required_word" translatable="false">DELETE</string>
+    <string name="delete_confirm_step2_action">Delete my account</string>
+    <string name="delete_in_progress">Deleting…</string>
+
+    <string name="delete_failed_prefix">We couldn’t delete your account.</string>
+</resources>
