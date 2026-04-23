@@ -1,19 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Seqaya launcher foreground.
-
-  Three-stroke hand-drawn line art, sage on cream. Stroke-only, no fill.
-  Sized inside the adaptive-icon safe zone (centre 66×66 of 108×108) with
-  ~5dp breathing room so no launcher mask clips it.
-
-  Stroke weight scales the design's 1.25-on-40-viewBox to 3.4-on-108 to
-  preserve the same visual hairline. At 48dp launcher size the strokes
-  render at ~1.5dp — fragile against busy wallpapers, but you chose
-  cleanliness over weight, and the line art reads as the brand.
+  Splash icon. Identical paths and rendering to ic_launcher_foreground so
+  the Android 12+ icon-to-splash morph hands off with no visual change.
+  Larger viewport for splash rendering at ~240dp; same 108-unit coordinate
+  space so the leaf positions match across all uses.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
+    android:width="288dp"
+    android:height="288dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 

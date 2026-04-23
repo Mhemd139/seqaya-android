@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  cubic-bezier(0.2, 0.8, 0.2, 1) — the single ease used everywhere in
+  the Seqaya design system. Matches docs/design-system/tokens.json motion.ease
+  and Compose's Seqaya.motion.easing.
+-->
+<pathInterpolator xmlns:android="http://schemas.android.com/apk/res/android"
+    android:controlX1="0.2"
+    android:controlY1="0.8"
+    android:controlX2="0.2"
+    android:controlY2="1.0" />

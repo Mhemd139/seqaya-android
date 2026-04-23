@@ -1,9 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Post-splash app theme. Cream system bars, light icons.
+      Applied by MainActivity via SplashScreen.installSplashScreen().setKeepOnScreenCondition,
+      and as the activity's <activity android:theme> so navigation gestures stay correct.
+    -->
     <style name="Theme.Seqaya" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- The window background MUST be cream. Without this, the framework
+             default (white) flashes between the system splash dismissing and
+             Compose painting its first frame — looks like a hard cut from the
+             leaf icon to a blank page. With this, the underlay stays cream
+             through the handoff and the leaf appears continuous. -->
+        <item name="android:windowBackground">@color/bg_cream</item>
+        <item name="android:colorBackground">@color/bg_cream</item>
         <item name="android:statusBarColor">@color/bg_cream</item>
         <item name="android:navigationBarColor">@color/bg_cream</item>
         <item name="android:windowLightStatusBar" tools:targetApi="23">true</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+    </style>
+
+    <!--
+      Pre-splash theme. Used as the activity's launch theme so the very first
+      frame after the user taps the launcher icon is the cream background with
+      the LeafMark sitting where the icon was. No white flash.
+
+      The animated icon plays the breath; postSplashScreenTheme hands off to
+      Theme.Seqaya the moment SplashScreen.setKeepOnScreenCondition releases.
+    -->
+    <style name="Theme.Seqaya.Splash" parent="Theme.SplashScreen">
+        <!-- Cream background. The splash icon falls back to the launcher
+             icon, which is the same line-art leaf as the in-app hero leaf —
+             so when Android dismisses the splash and Compose paints, the
+             leaf is in the same position at the same shape, and the user
+             perceives one continuous leaf rather than a swap.
+
+             windowSplashScreenIconBackgroundColor matches the splash bg so
+             the icon's circular puck is invisible against cream — the leaf
+             reads as floating on cream, identical to the in-app frame. -->
+        <item name="windowSplashScreenBackground">@color/bg_cream</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/bg_cream</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/bg_cream</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/leaf_mark</item>
+        <item name="windowSplashScreenAnimationDuration">0</item>
+        <item name="postSplashScreenTheme">@style/Theme.Seqaya</item>
     </style>
 </resources>

@@ -1,9 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
+
     <style name="Theme.Seqaya" parent="android:Theme.Material.NoActionBar">
+        <!-- Same reasoning as the light variant: kill the framework default
+             (dark grey) so there is no flash between the system splash and
+             the in-app composable. -->
+        <item name="android:windowBackground">@color/bg_ink</item>
+        <item name="android:colorBackground">@color/bg_ink</item>
         <item name="android:statusBarColor">@color/bg_ink</item>
         <item name="android:navigationBarColor">@color/bg_ink</item>
         <item name="android:windowLightStatusBar" tools:targetApi="23">false</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
+    </style>
+
+    <style name="Theme.Seqaya.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/bg_ink</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/bg_ink</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/bg_ink</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/leaf_mark</item>
+        <item name="windowSplashScreenAnimationDuration">0</item>
+        <item name="postSplashScreenTheme">@style/Theme.Seqaya</item>
     </style>
 </resources>

@@ -2,6 +2,10 @@
 <resources>
     <string name="app_name">Seqaya</string>
 
+    <string name="splash_wordmark">Seqaya</string>
+    <string name="splash_tagline">v2.0 · windowsill edition</string>
+    <string name="splash_leaf_content_description">Seqaya leaf mark</string>
+
     <string name="nav_home">Home</string>
     <string name="nav_scan">Scan</string>
     <string name="nav_library">Library</string>

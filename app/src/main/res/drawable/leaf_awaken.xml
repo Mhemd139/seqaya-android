@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The awakening: each of the three leaf strokes draws itself on, in sequence,
+  exactly matching the prototype timings:
+    outline  delay 0    duration 380
+    midrib   delay 240  duration 240
+    vein     delay 460  duration 200
+  After T=700 the leaf breathes (scale 1.00 ↔ 1.04, 1100ms each direction,
+  infinite). System splash budget is set to 1000ms in themes.xml so the
+  user sees the full draw-on inside the system splash window, then the
+  in-app composable picks up with the leaf already drawn and breathing.
+-->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:drawable="@drawable/leaf_mark">
+
+    <target android:name="leaf_outline">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:propertyName="trimPathStart"
+                android:valueFrom="1.0"
+                android:valueTo="0.0"
+                android:duration="380"
+                android:startOffset="0"
+                android:interpolator="@interpolator/seqaya_ease" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="leaf_midrib">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:propertyName="trimPathStart"
+                android:valueFrom="1.0"
+                android:valueTo="0.0"
+                android:duration="240"
+                android:startOffset="240"
+                android:interpolator="@interpolator/seqaya_ease" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="leaf_vein">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:propertyName="trimPathStart"
+                android:valueFrom="1.0"
+                android:valueTo="0.0"
+                android:duration="200"
+                android:startOffset="460"
+                android:interpolator="@interpolator/seqaya_ease" />
+        </aapt:attr>
+    </target>
+
+    <target android:name="leaf">
+        <aapt:attr name="android:animation">
+            <set android:ordering="together">
+                <objectAnimator
+                    android:propertyName="scaleX"
+                    android:valueFrom="1.0"
+                    android:valueTo="1.04"
+                    android:duration="1100"
+                    android:startOffset="700"
+                    android:repeatCount="infinite"
+                    android:repeatMode="reverse"
+                    android:interpolator="@interpolator/seqaya_ease" />
+                <objectAnimator
+                    android:propertyName="scaleY"
+                    android:valueFrom="1.0"
+                    android:valueTo="1.04"
+                    android:duration="1100"
+                    android:startOffset="700"
+                    android:repeatCount="infinite"
+                    android:repeatMode="reverse"
+                    android:interpolator="@interpolator/seqaya_ease" />
+            </set>
+        </aapt:attr>
+    </target>
+</animated-vector>
