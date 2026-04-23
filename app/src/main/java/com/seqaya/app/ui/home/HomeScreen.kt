@@ -47,6 +47,7 @@ import com.seqaya.app.ui.theme.Seqaya
 fun HomeScreen(
     onDeviceClick: (String) -> Unit = {},
     onAddDevice: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -61,7 +62,7 @@ fun HomeScreen(
             ErrorBanner(message = message, onDismiss = viewModel::dismissError)
         }
 
-        HomeTopBar(avatarLetter = state.avatarLetter)
+        HomeTopBar(avatarLetter = state.avatarLetter, onAvatarClick = onSettingsClick)
 
         when {
             state.isLoading -> Spacer(Modifier.fillMaxSize())
@@ -116,7 +117,7 @@ private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun HomeTopBar(avatarLetter: String) {
+private fun HomeTopBar(avatarLetter: String, onAvatarClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -128,19 +129,24 @@ private fun HomeTopBar(avatarLetter: String) {
             style = Seqaya.type.wordmark.copy(color = Seqaya.colors.textPrimary),
             modifier = Modifier.weight(1f),
         )
-        Avatar(letter = avatarLetter)
+        Avatar(letter = avatarLetter, onClick = onAvatarClick)
     }
 }
 
 @Composable
-private fun Avatar(letter: String) {
+private fun Avatar(letter: String, onClick: () -> Unit) {
     val avatarDescription = stringResource(R.string.home_avatar_content_description)
     Box(
         modifier = Modifier
-            .size(30.dp)
+            .minimumInteractiveComponentSize()
+            .size(36.dp)
             .clip(CircleShape)
             .background(Seqaya.colors.accentGreen)
-            .semantics { contentDescription = avatarDescription },
+            .clickable(onClick = onClick)
+            .semantics {
+                role = Role.Button
+                contentDescription = avatarDescription
+            },
         contentAlignment = Alignment.Center,
     ) {
         Text(

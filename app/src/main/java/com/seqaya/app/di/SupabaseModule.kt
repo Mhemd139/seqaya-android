@@ -2,6 +2,7 @@ package com.seqaya.app.di
 
 import android.content.Context
 import com.seqaya.app.data.remote.ConnectivityObserver
+import com.seqaya.app.data.remote.DeleteAccountService
 import com.seqaya.app.data.remote.SupabaseClientProvider
 import com.seqaya.app.data.repository.AuthRepository
 import com.seqaya.app.data.repository.DeviceRepository
@@ -51,4 +52,9 @@ object SupabaseModule {
     @Singleton
     fun providePlantRepository(supabase: SupabaseClient): PlantRepository =
         PlantRepository(supabase)
+
+    @Provides
+    @Singleton
+    fun provideDeleteAccountService(supabase: SupabaseClient): DeleteAccountService =
+        DeleteAccountService(supabase)
 }
