@@ -21,6 +21,13 @@ data class Plant(
 /** The 6 defaults that ship with the app when the Supabase `plants` table is empty. */
 val DefaultPlants: List<Plant> = listOf(
     Plant(
+        id = "default-peace-lily",
+        scientificName = "Spathiphyllum wallisii",
+        commonName = "Peace Lily",
+        moistureTargetPercent = 57,
+        illustrationKey = "generic",
+    ),
+    Plant(
         id = "default-fig",
         scientificName = "Ficus lyrata",
         commonName = "Fiddle Leaf Fig",
