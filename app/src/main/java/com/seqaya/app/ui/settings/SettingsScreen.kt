@@ -166,7 +166,7 @@ private fun ProfileBlock(displayName: String?, email: String?, initial: Char?) {
             )
             Text(
                 text = email ?: "",
-                style = Seqaya.type.body.copy(color = Seqaya.colors.textTertiary, fontSize = 13.sp),
+                style = Seqaya.type.body.copy(color = Seqaya.colors.textTertiary, fontSize = 16.sp),
             )
         }
     }
@@ -191,7 +191,7 @@ private fun SectionRow(
                 .clickable(onClick = onClick)
                 .semantics {
                     role = Role.Button
-                    contentDescription = description
+                    contentDescription = "$label. $description"
                 }
                 .padding(vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -246,12 +246,17 @@ private fun AboutBlock() {
         )
     }
     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Seqaya.colors.border))
+    val supportLabel = stringResource(R.string.settings_support_label)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
                 val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$supportEmail"))
                 runCatching { context.startActivity(intent) }
+            }
+            .semantics {
+                role = Role.Button
+                contentDescription = "$supportLabel $supportEmail"
             }
             .padding(vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,

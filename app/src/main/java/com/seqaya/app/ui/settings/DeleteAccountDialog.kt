@@ -1,11 +1,17 @@
 package com.seqaya.app.ui.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -14,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -36,13 +43,18 @@ fun DeleteAccountDialog(
         DeleteStep.Warning -> AlertDialog(
             onDismissRequest = dismiss,
             title = { Text(stringResource(R.string.delete_confirm_step1_title)) },
-            text = { Text(stringResource(R.string.delete_confirm_step1_body)) },
+            text = {
+                Text(
+                    text = stringResource(R.string.delete_confirm_step1_body),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            },
             confirmButton = {
-                TextButton(onClick = { step = DeleteStep.Type }) {
-                    Text(
-                        text = stringResource(R.string.delete_confirm_step1_continue),
-                        color = Seqaya.colors.accentBrown,
-                    )
+                TextButton(
+                    onClick = { step = DeleteStep.Type },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Seqaya.colors.accentBrown),
+                ) {
+                    Text(stringResource(R.string.delete_confirm_step1_continue))
                 }
             },
             dismissButton = {
@@ -54,7 +66,10 @@ fun DeleteAccountDialog(
             title = { Text(stringResource(R.string.delete_confirm_step2_title)) },
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.delete_confirm_step2_hint))
+                    Text(
+                        text = stringResource(R.string.delete_confirm_step2_hint),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = typed,
@@ -71,12 +86,22 @@ fun DeleteAccountDialog(
                 TextButton(
                     onClick = onConfirm,
                     enabled = !isDeleting && typed == requiredWord,
+                    colors = ButtonDefaults.textButtonColors(contentColor = Seqaya.colors.accentBrown),
                 ) {
-                    Text(
-                        text = if (isDeleting) stringResource(R.string.delete_in_progress)
-                               else stringResource(R.string.delete_confirm_step2_action),
-                        color = Seqaya.colors.accentBrown,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isDeleting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp,
+                                color = Seqaya.colors.accentBrown,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text(
+                            text = if (isDeleting) stringResource(R.string.delete_in_progress)
+                                   else stringResource(R.string.delete_confirm_step2_action),
+                        )
+                    }
                 }
             },
             dismissButton = {

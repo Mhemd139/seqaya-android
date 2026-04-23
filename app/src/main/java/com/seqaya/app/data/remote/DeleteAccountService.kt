@@ -11,19 +11,30 @@ import kotlinx.serialization.Serializable
 
 private const val TAG = "DeleteAccountService"
 private const val FUNCTION_NAME = "delete-account"
+private const val SAFE_ERROR_MESSAGE = "Couldn't delete your account. Try again or contact Seqaya.io@gmail.com."
 
 class DeleteAccountService(
     private val supabase: SupabaseClient,
 ) {
-    suspend fun deleteAccount(): Result<Unit> = runCatching {
-        val response: HttpResponse = supabase.functions.invoke(FUNCTION_NAME) {
-            method = HttpMethod.Post
+    suspend fun deleteAccount(): Result<Unit> {
+        return try {
+            val response: HttpResponse = supabase.functions.invoke(FUNCTION_NAME) {
+                method = HttpMethod.Post
+            }
+            val body = runCatching { response.body<DeleteAccountResponse>() }.getOrNull()
+            if (!response.status.isSuccess() || body?.ok != true) {
+                Log.e(TAG, "deleteAccount failed: status=${response.status} message=${body?.message}")
+                Result.failure(Exception(SAFE_ERROR_MESSAGE))
+            } else {
+                Result.success(Unit)
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteAccount failed", e)
+            Result.failure(Exception(SAFE_ERROR_MESSAGE))
         }
-        val body = runCatching { response.body<DeleteAccountResponse>() }.getOrNull()
-        if (!response.status.isSuccess() || body?.ok != true) {
-            error(body?.message ?: "Couldn't delete your account. Try again or contact Seqaya.io@gmail.com.")
-        }
-    }.onFailure { Log.e(TAG, "deleteAccount failed", it) }
+    }
 
     @Serializable
     private data class DeleteAccountResponse(

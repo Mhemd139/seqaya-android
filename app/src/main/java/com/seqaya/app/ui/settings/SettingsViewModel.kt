@@ -57,10 +57,7 @@ class SettingsViewModel @Inject constructor(
                     // AuthState flow flips to Unauthenticated → SeqayaRoot routes to SignIn.
                 }
                 .onFailure { throwable ->
-                    deletionFlow.value = DeletionState.Error(
-                        throwable.message
-                            ?: "Couldn't delete your account. Try again or contact Seqaya.io@gmail.com."
-                    )
+                    deletionFlow.value = DeletionState.Error(throwable.message.orEmpty())
                 }
         }
     }
