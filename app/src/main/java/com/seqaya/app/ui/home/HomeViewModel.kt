@@ -25,6 +25,7 @@ import javax.inject.Inject
 
 data class HomeUiState(
     val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false,
     val isOffline: Boolean = false,
     val devices: List<DeviceWithReading> = emptyList(),
     val error: String? = null,
@@ -45,13 +46,14 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val errorFlow = MutableStateFlow<String?>(null)
+    private val refreshingFlow = MutableStateFlow(false)
 
     private val avatarLetterFlow = authRepository.authState.map { auth ->
         val user = (auth as? AuthState.Authenticated)?.user
         (user?.displayName ?: user?.email).orEmpty().firstOrNull()?.uppercase().orEmpty()
     }.distinctUntilChanged()
 
-    val state: StateFlow<HomeUiState> = combine(
+    private val dataFlow = combine(
         deviceRepository.observeDevices().debounce(100L).distinctUntilChanged(),
         readingRepository.observeLatest()
             .map { list -> list.associateBy { it.deviceSerial } }
@@ -67,6 +69,10 @@ class HomeViewModel @Inject constructor(
             error = error,
             avatarLetter = avatarLetter,
         )
+    }
+
+    val state: StateFlow<HomeUiState> = combine(dataFlow, refreshingFlow) { base, refreshing ->
+        base.copy(isRefreshing = refreshing)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -85,6 +91,22 @@ class HomeViewModel @Inject constructor(
 
     fun dismissError() {
         errorFlow.value = null
+    }
+
+    fun refresh() {
+        if (refreshingFlow.value) return
+        refreshingFlow.value = true
+        viewModelScope.launch {
+            try {
+                deviceRepository.refresh().onFailure { errorFlow.value = "Couldn't reach the cloud. Showing the last state we know." }
+                val serials = deviceRepository.serialsSnapshot()
+                if (serials.isNotEmpty()) {
+                    readingRepository.refreshLatestFor(serials).onFailure { errorFlow.value = "Couldn't refresh moisture data." }
+                }
+            } finally {
+                refreshingFlow.value = false
+            }
+        }
     }
 
     /**

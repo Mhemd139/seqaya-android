@@ -16,8 +16,8 @@
     <style name="Theme.Seqaya.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/bg_ink</item>
         <item name="windowSplashScreenIconBackgroundColor">@color/bg_ink</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/leaf_mark</item>
-        <item name="windowSplashScreenAnimationDuration">0</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/leaf_awaken</item>
+        <item name="windowSplashScreenAnimationDuration">1000</item>
         <item name="postSplashScreenTheme">@style/Theme.Seqaya</item>
     </style>
 </resources>

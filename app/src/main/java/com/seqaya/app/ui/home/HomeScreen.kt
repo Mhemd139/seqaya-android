@@ -18,8 +18,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -76,6 +79,7 @@ fun HomeScreen(
                 onReviewThirsty = showComingSoon,
                 onDeviceClick = onDeviceClick,
                 onAddDevice = onAddDevice,
+                onRefresh = viewModel::refresh,
             )
         }
     }
@@ -212,34 +216,43 @@ private fun HomeEmpty(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomePopulated(
     state: HomeUiState,
     onReviewThirsty: () -> Unit,
     onDeviceClick: (String) -> Unit,
     onAddDevice: () -> Unit,
+    onRefresh: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
+        PullToRefreshBox(
+            isRefreshing = state.isRefreshing,
+            onRefresh = onRefresh,
+            state = rememberPullToRefreshState(),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 20.dp, end = 20.dp, top = 4.dp, bottom = 96.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            state.thirstyDevice?.let { thirsty ->
-                item {
-                    AttentionBanner(
-                        thirstyDeviceName = thirsty.displayName,
-                        onReview = { onDeviceClick(thirsty.device.serial) },
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = 20.dp, end = 20.dp, top = 4.dp, bottom = 96.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                state.thirstyDevice?.let { thirsty ->
+                    item {
+                        AttentionBanner(
+                            thirstyDeviceName = thirsty.displayName,
+                            onReview = { onDeviceClick(thirsty.device.serial) },
+                        )
+                    }
+                }
+                items(items = state.devices, key = { it.device.id }) { device ->
+                    DeviceCard(
+                        item = device,
+                        onClick = { onDeviceClick(device.device.serial) },
                     )
                 }
-            }
-            items(items = state.devices, key = { it.device.id }) { device ->
-                DeviceCard(
-                    item = device,
-                    onClick = { onDeviceClick(device.device.serial) },
-                )
             }
         }
         AddPlantFab(
