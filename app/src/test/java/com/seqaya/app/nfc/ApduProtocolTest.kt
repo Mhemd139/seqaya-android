@@ -166,30 +166,36 @@ class ApduProtocolTest {
         )
     }
 
-    @Test fun `chunkResponses splits 16-byte payload into two chunks`() {
-        val payload = "0123456789ABCDEF".toByteArray(Charsets.UTF_8) // exactly 16 bytes
+    @Test fun `chunkResponses splits 2x payload into two chunks`() {
+        // Exactly 2 chunks worth of payload — first is non-terminal, second terminal,
+        // both fully filled with payload bytes.
+        val size = ApduProtocol.PAYLOAD_PER_CHUNK * 2
+        val payload = ByteArray(size) { it.toByte() }
         val chunks = ApduProtocol.chunkResponses(payload)
         assertEquals(2, chunks.size)
         assertArrayEquals(
-            byteArrayOf(0x00, 0x00) + "01234567".toByteArray(Charsets.UTF_8),
+            byteArrayOf(0x00, 0x00) + payload.copyOfRange(0, ApduProtocol.PAYLOAD_PER_CHUNK),
             chunks[0],
         )
         assertArrayEquals(
-            byteArrayOf(0x90.toByte(), 0x00) + "89ABCDEF".toByteArray(Charsets.UTF_8),
+            byteArrayOf(0x90.toByte(), 0x00) + payload.copyOfRange(ApduProtocol.PAYLOAD_PER_CHUNK, size),
             chunks[1],
         )
     }
 
-    @Test fun `chunkResponses 17-byte payload splits into two non-terminal plus terminal single-byte`() {
-        val payload = "0123456789ABCDEFG".toByteArray(Charsets.UTF_8)
+    @Test fun `chunkResponses 2x+1 payload splits into two non-terminal plus single-byte terminal`() {
+        // 2 chunks plus one extra byte — proves spillover collapses into a
+        // terminal chunk of just status + 1 byte (not padded).
+        val size = ApduProtocol.PAYLOAD_PER_CHUNK * 2 + 1
+        val payload = ByteArray(size) { it.toByte() }
         val chunks = ApduProtocol.chunkResponses(payload)
         assertEquals(3, chunks.size)
         assertEquals("00 00", chunks[0].take(2).joinToString(" ") { "%02X".format(it) })
         assertEquals("00 00", chunks[1].take(2).joinToString(" ") { "%02X".format(it) })
         assertEquals("90 00", chunks[2].take(2).joinToString(" ") { "%02X".format(it) })
-        assertEquals(10, chunks[0].size)
-        assertEquals(10, chunks[1].size)
-        assertEquals(3, chunks[2].size)
+        assertEquals(2 + ApduProtocol.PAYLOAD_PER_CHUNK, chunks[0].size)
+        assertEquals(2 + ApduProtocol.PAYLOAD_PER_CHUNK, chunks[1].size)
+        assertEquals(2 + 1, chunks[2].size)
     }
 
     @Test fun `chunkResponses 0-byte payload is one terminal chunk of just 90 00`() {
