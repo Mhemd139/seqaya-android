@@ -54,6 +54,7 @@ fun WifiStep(
     ssid: String,
     password: String,
     ssidPrefilled: Boolean,
+    locationServicesOff: Boolean,
     pickerOpen: Boolean,
     pickerNetworks: List<WifiNetwork>,
     onSsidChange: (String) -> Unit,
@@ -61,6 +62,7 @@ fun WifiStep(
     onOpenPicker: () -> Unit,
     onClosePicker: () -> Unit,
     onPickNetwork: (String) -> Unit,
+    onOpenLocationSettings: () -> Unit,
     onNext: () -> Unit,
     error: String?,
 ) {
@@ -80,6 +82,11 @@ fun WifiStep(
             color = Seqaya.colors.textSecondary,
         )
         Spacer(Modifier.height(28.dp))
+
+        if (locationServicesOff) {
+            LocationServicesBanner(onOpenSettings = onOpenLocationSettings)
+            Spacer(Modifier.height(20.dp))
+        }
 
         FieldLabel("Network")
         Spacer(Modifier.height(6.dp))
@@ -181,6 +188,46 @@ fun WifiStep(
                 onPick = onPickNetwork,
             )
         }
+    }
+}
+
+/**
+ * Banner shown when the OS Location toggle is off. Without it, every Wi-Fi
+ * read returns redacted data (`<unknown ssid>`) regardless of permission grants —
+ * Android's privacy contract, not something we can read around.
+ */
+@Composable
+private fun LocationServicesBanner(onOpenSettings: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Seqaya.colors.accentBrownSoft)
+            .border(1.dp, Seqaya.colors.accentBrown, RoundedCornerShape(10.dp))
+            .padding(14.dp),
+    ) {
+        Text(
+            text = "Turn on Location to detect your Wi-Fi",
+            style = Seqaya.type.body.copy(fontWeight = FontWeight.SemiBold),
+            color = Seqaya.colors.accentBrownInk,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Android requires the system Location toggle to be on so apps can read the Wi-Fi name. We don't track your location.",
+            style = Seqaya.type.body.copy(fontSize = 13.sp),
+            color = Seqaya.colors.accentBrownInk,
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = "Open Location settings",
+            style = Seqaya.type.caption.copy(fontWeight = FontWeight.Medium),
+            color = Seqaya.colors.accentBrownInk,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onOpenSettings)
+                .semantics { contentDescription = "Open system Location settings" }
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+        )
     }
 }
 

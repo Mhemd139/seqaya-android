@@ -1,6 +1,8 @@
 package com.seqaya.app.ui.provisioning
 
 import android.Manifest
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,15 +27,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.seqaya.app.ui.theme.Seqaya
 
@@ -44,6 +51,7 @@ fun AddDeviceScreen(
     viewModel: AddDeviceWizardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     // Real launcher for ACCESS_FINE_LOCATION — the VM emits RequestLocationPermission when
     // it enters the Wi-Fi step and can't prefill the SSID because the permission is denied.
@@ -52,6 +60,18 @@ fun AddDeviceScreen(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (granted) viewModel.onLocationPermissionGranted()
+    }
+
+    // OS Location toggle is controlled in Settings, not via permission dialog. When
+    // the user comes back from Settings (lifecycle ON_RESUME) we re-check the toggle
+    // and clear the banner / retry SSID prefill if they enabled it.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshLocationServices()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     LaunchedEffect(Unit) {
@@ -101,6 +121,7 @@ fun AddDeviceScreen(
                     ssid = state.ssid,
                     password = state.password,
                     ssidPrefilled = state.ssidPrefilled,
+                    locationServicesOff = state.locationServicesOff,
                     pickerOpen = state.pickerOpen,
                     pickerNetworks = state.pickerNetworks,
                     onSsidChange = viewModel::setSsid,
@@ -108,6 +129,17 @@ fun AddDeviceScreen(
                     onOpenPicker = viewModel::openNetworkPicker,
                     onClosePicker = viewModel::closeNetworkPicker,
                     onPickNetwork = viewModel::selectNetworkFromPicker,
+                    onOpenLocationSettings = {
+                        // Send to the Location Source page directly. Some OEMs (Samsung)
+                        // bury the toggle under multiple submenus from the generic
+                        // application settings page.
+                        runCatching {
+                            context.startActivity(
+                                Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }
+                    },
                     onNext = viewModel::advanceToTap,
                     error = state.error,
                 )

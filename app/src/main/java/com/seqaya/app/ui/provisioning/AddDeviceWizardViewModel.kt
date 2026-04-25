@@ -34,6 +34,7 @@ data class AddDeviceUiState(
     val ssid: String = "",
     val password: String = "",
     val ssidPrefilled: Boolean = false,
+    val locationServicesOff: Boolean = false,
     val pickerOpen: Boolean = false,
     val pickerNetworks: List<WifiNetwork> = emptyList(),
     val sessionStatus: ProvisioningSession.Status = ProvisioningSession.Status.Idle,
@@ -109,7 +110,13 @@ class AddDeviceWizardViewModel @Inject constructor(
 
     fun advanceToWifi() {
         val selected = _ui.value.selectedPlant ?: return
-        _ui.update { it.copy(step = Step.Wifi, error = null) }
+        _ui.update {
+            it.copy(
+                step = Step.Wifi,
+                error = null,
+                locationServicesOff = !wifiProvider.isLocationServicesEnabled,
+            )
+        }
         // Warm the scan cache so the picker has fresh results when opened.
         // No-op if location permission isn't granted yet.
         wifiProvider.triggerScan()
@@ -123,6 +130,29 @@ class AddDeviceWizardViewModel @Inject constructor(
             }
             if (prefilled == null && !wifiProvider.hasLocationPermission) {
                 _events.send(AddDeviceEvent.RequestLocationPermission)
+            }
+        }
+    }
+
+    /**
+     * Re-checks the OS Location toggle. Called when the user returns from system
+     * Settings (the only way to flip the toggle), so an enabled toggle clears
+     * the banner and we retry SSID prefill.
+     */
+    fun refreshLocationServices() {
+        if (_ui.value.step != Step.Wifi) return
+        val nowOn = wifiProvider.isLocationServicesEnabled
+        _ui.update { it.copy(locationServicesOff = !nowOn) }
+        if (nowOn) {
+            wifiProvider.triggerScan()
+            viewModelScope.launch {
+                val prefilled = withTimeoutOrNull(1_500) { wifiProvider.currentSsid.firstOrNull { it != null } } ?: return@launch
+                _ui.update {
+                    it.copy(
+                        ssid = if (it.ssid.isEmpty()) prefilled else it.ssid,
+                        ssidPrefilled = it.ssid.isEmpty(),
+                    )
+                }
             }
         }
     }

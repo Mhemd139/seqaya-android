@@ -12,10 +12,10 @@ import android.net.wifi.ScanResult
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
-import androidx.core.location.LocationManagerCompat
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -98,29 +98,18 @@ class CurrentWifiProvider @Inject constructor(
 
     @RequiresApi(Build.VERSION_CODES.S)
     private fun extractSsidFromCaps(caps: NetworkCapabilities): String? {
-        if (!hasLocationPermission) {
-            Log.d(TAG, "extractSsidFromCaps: no location permission (locSvcOn=$isLocationServicesEnabled)")
-            return null
-        }
-        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
-            Log.d(TAG, "extractSsidFromCaps: no Wi-Fi transport on default network")
-            return null
-        }
-        val raw = (caps.transportInfo as? WifiInfo)?.ssid
-        Log.d(TAG, "extractSsidFromCaps: raw='$raw' locSvcOn=$isLocationServicesEnabled")
-        if (raw == null || raw.isEmpty() || raw == UNKNOWN_SSID) return null
+        if (!hasLocationPermission) return null
+        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
+        val raw = (caps.transportInfo as? WifiInfo)?.ssid ?: return null
+        if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
         return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
     }
 
     @Suppress("DEPRECATION")
     private fun readSsidLegacy(): String? {
-        if (!hasLocationPermission) {
-            Log.d(TAG, "readSsidLegacy: no location permission (locSvcOn=$isLocationServicesEnabled)")
-            return null
-        }
-        val raw = wifiManager?.connectionInfo?.ssid
-        Log.d(TAG, "readSsidLegacy: raw='$raw' locSvcOn=$isLocationServicesEnabled")
-        if (raw == null || raw.isEmpty() || raw == UNKNOWN_SSID) return null
+        if (!hasLocationPermission) return null
+        val raw = wifiManager?.connectionInfo?.ssid ?: return null
+        if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
         return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
     }
 
@@ -156,25 +145,15 @@ class CurrentWifiProvider @Inject constructor(
     @SuppressLint("MissingPermission")
     @Suppress("DEPRECATION")
     fun scanNetworks(): List<WifiNetwork> {
-        if (!hasLocationPermission) {
-            Log.d(TAG, "scanNetworks: no location permission")
-            return emptyList()
-        }
-        val mgr = wifiManager
-        if (mgr == null) {
-            Log.d(TAG, "scanNetworks: WifiManager unavailable")
-            return emptyList()
-        }
+        if (!hasLocationPermission) return emptyList()
+        val mgr = wifiManager ?: return emptyList()
         // Kick off a fresh scan so the next picker open has fresh data. The
         // current call still reads whatever's in cache from the previous scan.
-        val scanStarted = runCatching { mgr.startScan() }.onFailure {
-            Log.w(TAG, "startScan() failed", it)
-        }.getOrDefault(false)
+        runCatching { mgr.startScan() }.onFailure { Log.w(TAG, "startScan() failed", it) }
         val results = runCatching { mgr.scanResults }.getOrElse {
             Log.w(TAG, "scanResults read failed", it)
             return emptyList()
         }
-        Log.d(TAG, "scanNetworks: startScan=$scanStarted, raw count=${results.size}, locSvcOn=$isLocationServicesEnabled")
         return results
             .filter { !it.SSID.isNullOrBlank() }
             // Many home routers broadcast the same SSID on both bands. Prefer
