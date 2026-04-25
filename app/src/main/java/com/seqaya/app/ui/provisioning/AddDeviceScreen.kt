@@ -101,8 +101,13 @@ fun AddDeviceScreen(
                     ssid = state.ssid,
                     password = state.password,
                     ssidPrefilled = state.ssidPrefilled,
+                    pickerOpen = state.pickerOpen,
+                    pickerNetworks = state.pickerNetworks,
                     onSsidChange = viewModel::setSsid,
                     onPasswordChange = viewModel::setPassword,
+                    onOpenPicker = viewModel::openNetworkPicker,
+                    onClosePicker = viewModel::closeNetworkPicker,
+                    onPickNetwork = viewModel::selectNetworkFromPicker,
                     onNext = viewModel::advanceToTap,
                     error = state.error,
                 )
