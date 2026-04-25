@@ -3,6 +3,7 @@ package com.seqaya.app.ui.provisioning
 import android.Manifest
 import android.content.Intent
 import android.provider.Settings
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -64,14 +65,19 @@ fun AddDeviceScreen(
     val settingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
     ) {
+        Log.d("AddDeviceScreen", "settingsLauncher result fired")
         viewModel.refreshLocationServices()
     }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { ev ->
+            Log.d("AddDeviceScreen", "event: $ev")
             when (ev) {
                 is AddDeviceEvent.Finished -> onFinish(ev.deviceSerial, ev.nickname)
-                AddDeviceEvent.Cancelled -> onCancel()
+                AddDeviceEvent.Cancelled -> {
+                    Log.d("AddDeviceScreen", "Cancelled event -> onCancel() (back to home)", Throwable())
+                    onCancel()
+                }
                 AddDeviceEvent.RequestLocationPermission ->
                     locationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             }
@@ -79,7 +85,7 @@ fun AddDeviceScreen(
     }
 
     BackHandler {
-        // Always route back through VM so the session is dismissed cleanly.
+        Log.d("AddDeviceScreen", "BackHandler fired -> viewModel.cancel()", Throwable())
         viewModel.cancel()
     }
 

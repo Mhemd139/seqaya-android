@@ -278,6 +278,7 @@ class AddDeviceWizardViewModel @Inject constructor(
         }
 
     fun cancel() {
+        android.util.Log.d("AddDeviceVM", "cancel() called", Throwable())
         dismissOwnedSession()
         viewModelScope.launch { _events.send(AddDeviceEvent.Cancelled) }
     }
