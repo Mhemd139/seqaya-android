@@ -60,12 +60,20 @@ data class MoisturePoint(val timestamp: Instant, val percent: Int)
 private const val Y_AXIS_MIN = 0.0
 private const val Y_AXIS_MAX = 100.0
 
-// Vico's HorizontalAxis.rememberBottom reserves vertical space for label text +
-// tick + guideline. There's no public API to query the actual reserved height,
-// so we mirror the default (12sp label + ~12dp padding) here so the watering-dot
-// overlay shares the chart's plot rect rather than sitting below the line.
+// HorizontalAxis.rememberBottom reserves vertical space for label + tick + guideline.
+// Vico exposes no public API to query the actual reserved height, so we pad the
+// watering-dot overlay by this constant so dots stay on the line, not the axis.
 private val BOTTOM_AXIS_INSET = 24.dp
 
+/**
+ * Time-windowed moisture chart.
+ *
+ * The x-axis spans the full [range] window — `now - range.durationMs` to `now` —
+ * regardless of how much data the device has logged. So a 30-day range with
+ * only 6 hours of points renders the line clustered on the right with empty
+ * space on the left, instead of stretching 6 hours across 30 days. This is the
+ * behavior the user expects when switching ranges.
+ */
 @Composable
 fun MoistureChart(
     points: List<MoisturePoint>,
@@ -94,11 +102,22 @@ fun MoistureChart(
     val accentGreen = colors.accentGreen
     val accentBrown = colors.accentBrown
     val borderColor = colors.border
-    val pointCount = points.size
 
-    LaunchedEffect(points) {
+    // Pin the window's right edge for the duration of this composition so axis
+    // labels and the model agree on "now". Re-pins when range or points change.
+    val windowEndMs = remember(range, points) { System.currentTimeMillis() }
+    val windowStartMs = windowEndMs - range.durationMs
+
+    val xValues = remember(points) {
+        points.map { it.timestamp.toEpochMilli().toDouble() }
+    }
+    val yValues = remember(points) {
+        points.map { it.percent.toDouble() }
+    }
+
+    LaunchedEffect(xValues, yValues) {
         modelProducer.runTransaction {
-            lineSeries { series(points.map { it.percent.toDouble() }) }
+            lineSeries { series(x = xValues, y = yValues) }
         }
     }
 
@@ -108,15 +127,20 @@ fun MoistureChart(
         areaFill = null,
     )
 
-    val rangeProvider = remember { CartesianLayerRangeProvider.fixed(minY = Y_AXIS_MIN, maxY = Y_AXIS_MAX) }
+    // Fixed window: full range on x, full 0..100 on y. Sparse data falls where
+    // it actually is in time rather than being stretched edge-to-edge.
+    val rangeProvider = remember(windowStartMs, windowEndMs) {
+        CartesianLayerRangeProvider.fixed(
+            minX = windowStartMs.toDouble(),
+            maxX = windowEndMs.toDouble(),
+            minY = Y_AXIS_MIN,
+            maxY = Y_AXIS_MAX,
+        )
+    }
 
-    val windowStartMs = remember(range) { System.currentTimeMillis() - range.durationMs }
-    val xFormatter = remember(range, pointCount) {
+    val xFormatter = remember(range) {
         CartesianValueFormatter { _, value, _ ->
-            if (pointCount <= 1) return@CartesianValueFormatter ""
-            val fraction = value / (pointCount - 1).toDouble()
-            val ts = Instant.ofEpochMilli((windowStartMs + fraction * range.durationMs).toLong())
-            formatAxisLabel(ts, range)
+            formatAxisLabel(Instant.ofEpochMilli(value.toLong()), range)
         }
     }
     val bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = xFormatter)
@@ -164,14 +188,18 @@ fun MoistureChart(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = BOTTOM_AXIS_INSET)
-                .pointerInput(pointCount) {
+                .pointerInput(points, windowStartMs, windowEndMs) {
                     detectTapGestures { offset ->
                         val w = size.width.toFloat()
                         if (w <= 0f) return@detectTapGestures
-                        val step = w / (pointCount - 1)
-                        val nearest = (offset.x / step).roundToInt().coerceIn(0, pointCount - 1)
-                        val dx = offset.x - nearest * step
-                        selectedIndex = if (abs(dx) <= step / 2f) nearest else null
+                        val tappedMs = windowStartMs + (offset.x / w * (windowEndMs - windowStartMs)).toLong()
+                        val nearest = points.indices.minByOrNull {
+                            kotlin.math.abs(points[it].timestamp.toEpochMilli() - tappedMs)
+                        } ?: return@detectTapGestures
+                        // Hit if within ~5% of the visible window (responsive on all ranges).
+                        val tolerance = (windowEndMs - windowStartMs) / 20
+                        val delta = kotlin.math.abs(points[nearest].timestamp.toEpochMilli() - tappedMs)
+                        selectedIndex = if (delta <= tolerance) nearest else null
                     }
                 },
         ) {
@@ -179,17 +207,16 @@ fun MoistureChart(
 
             val w = size.width
             val h = size.height
-            val step = w / (pointCount - 1)
-            val minTs = points.first().timestamp
-            val maxTs = points.last().timestamp
-            val totalMs = Duration.between(minTs, maxTs).toMillis().coerceAtLeast(1L)
+            val totalMs = (windowEndMs - windowStartMs).coerceAtLeast(1L)
 
             wateringEvents.forEach { event ->
-                if (event.isBefore(minTs) || event.isAfter(maxTs)) return@forEach
-                val ratio = Duration.between(minTs, event).toMillis().toDouble() / totalMs
-                val idx = (ratio * (pointCount - 1)).roundToInt().coerceIn(0, pointCount - 1)
-                val x = idx * step
-                val y = (h - ((points[idx].percent - Y_AXIS_MIN) / (Y_AXIS_MAX - Y_AXIS_MIN)).toFloat() * h)
+                val eventMs = event.toEpochMilli()
+                if (eventMs < windowStartMs || eventMs > windowEndMs) return@forEach
+                val x = ((eventMs - windowStartMs).toDouble() / totalMs).toFloat() * w
+                // Pin the dot's y to the line at the nearest data point in time.
+                val nearest = points.minByOrNull { abs(it.timestamp.toEpochMilli() - eventMs) }
+                    ?: return@forEach
+                val y = (h - ((nearest.percent - Y_AXIS_MIN) / (Y_AXIS_MAX - Y_AXIS_MIN)).toFloat() * h)
                 drawCircle(color = accentBrown, radius = dotRadiusPx, center = Offset(x, y))
             }
         }
@@ -197,8 +224,9 @@ fun MoistureChart(
         val sel = selectedIndex
         if (sel != null && chartSizePx.width > 0 && sel in points.indices) {
             val point = points[sel]
-            val step = chartSizePx.width.toFloat() / (pointCount - 1).coerceAtLeast(1)
-            val xPx = (sel * step).roundToInt()
+            val totalMs = (windowEndMs - windowStartMs).coerceAtLeast(1L)
+            val fraction = (point.timestamp.toEpochMilli() - windowStartMs).toDouble() / totalMs
+            val xPx = (fraction * chartSizePx.width).roundToInt().coerceIn(0, chartSizePx.width)
             val labelWidthDp = 88.dp
             val rawX = with(density) { xPx.toDp() } - labelWidthDp / 2
             val maxX = with(density) { chartSizePx.width.toDp() } - labelWidthDp
