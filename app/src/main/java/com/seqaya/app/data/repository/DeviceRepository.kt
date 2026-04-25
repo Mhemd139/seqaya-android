@@ -3,6 +3,7 @@ package com.seqaya.app.data.repository
 import android.util.Log
 import com.seqaya.app.data.local.DeviceDao
 import com.seqaya.app.data.local.DeviceEntity
+import com.seqaya.app.data.local.ReadingDao
 import com.seqaya.app.data.remote.dto.DeviceDto
 import com.seqaya.app.domain.model.Device
 import io.github.jan.supabase.SupabaseClient
@@ -24,6 +25,7 @@ private val DEVICE_COLUMNS = Columns.list(
 class DeviceRepository(
     private val supabase: SupabaseClient,
     private val dao: DeviceDao,
+    private val readingDao: ReadingDao,
 ) {
     fun observeDevices(): Flow<List<Device>> =
         dao.observeAll().map { list -> list.map { it.toDomain() } }
@@ -41,7 +43,21 @@ class DeviceRepository(
         dao.clear()
     }
 
+    /**
+     * Delete a device row + its readings.
+     *
+     * The migration `2026-04-25-cascade-delete-readings.sql` adds ON DELETE
+     * CASCADE on `device_readings.device_serial`, so the readings DELETE here
+     * is technically redundant once the migration is applied. We keep it for
+     * environments where the migration hasn't run yet (older Supabase forks)
+     * and so the local Room cache stays in sync without a refetch.
+     */
     suspend fun delete(id: String): Result<Unit> = runCatching {
+        val serial = dao.getSerialById(id)
+        if (serial != null) {
+            supabase.from("device_readings").delete { filter { eq("device_serial", serial) } }
+            readingDao.clearForDevice(serial)
+        }
         supabase.from("devices").delete { filter { eq("id", id) } }
         dao.deleteById(id)
     }.onFailure { Log.e(TAG, "Delete device failed", it) }
