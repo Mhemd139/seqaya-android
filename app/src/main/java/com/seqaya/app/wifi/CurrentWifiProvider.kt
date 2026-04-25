@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -27,14 +28,17 @@ class CurrentWifiProvider @Inject constructor(
 
     fun currentSsid(): String? {
         if (!hasLocationPermission) return null
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) currentSsidModern()
-        else currentSsidLegacy()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            currentSsidModern()?.let { return it }
+        }
+        return currentSsidLegacy()
     }
 
     @SuppressLint("MissingPermission")
     private fun currentSsidModern(): String? {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return null
         val caps = cm.getNetworkCapabilities(cm.activeNetwork ?: return null) ?: return null
+        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
         val wifiInfo = (caps.transportInfo as? WifiInfo) ?: return null
         val raw = wifiInfo.ssid ?: return null
         if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
