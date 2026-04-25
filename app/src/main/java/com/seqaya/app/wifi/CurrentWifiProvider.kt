@@ -11,6 +11,7 @@ import android.net.NetworkRequest
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
@@ -66,6 +67,7 @@ class CurrentWifiProvider @Inject constructor(
         else readSsidLegacy()
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun readSsidModern(): String? {
         val caps = cm.getNetworkCapabilities(cm.activeNetwork ?: return null) ?: return null
         if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
