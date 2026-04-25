@@ -110,10 +110,12 @@ fun MoistureChart(
 
     val rangeProvider = remember { CartesianLayerRangeProvider.fixed(minY = Y_AXIS_MIN, maxY = Y_AXIS_MAX) }
 
-    val xFormatter = remember(points, range) {
+    val windowStartMs = remember(range) { System.currentTimeMillis() - range.durationMs }
+    val xFormatter = remember(range, pointCount) {
         CartesianValueFormatter { _, value, _ ->
-            val idx = value.toInt().coerceIn(0, (points.size - 1).coerceAtLeast(0))
-            val ts = points.getOrNull(idx)?.timestamp ?: return@CartesianValueFormatter ""
+            if (pointCount <= 1) return@CartesianValueFormatter ""
+            val fraction = value / (pointCount - 1).toDouble()
+            val ts = Instant.ofEpochMilli((windowStartMs + fraction * range.durationMs).toLong())
             formatAxisLabel(ts, range)
         }
     }

@@ -38,18 +38,24 @@ class CurrentWifiProvider @Inject constructor(
 
     @SuppressLint("MissingPermission")
     val currentSsid: Flow<String?> = callbackFlow {
-        val emit = { trySend(readSsid()) }
         val callback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             object : ConnectivityManager.NetworkCallback(FLAG_INCLUDE_LOCATION_INFO) {
-                override fun onAvailable(network: Network) { emit() }
-                override fun onLost(network: Network) { emit() }
-                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { emit() }
+                override fun onAvailable(network: Network) { trySend(readSsid()) }
+                override fun onLost(network: Network) { trySend(null) }
+                // On S+, FLAG_INCLUDE_LOCATION_INFO only applies to caps delivered
+                // here — not to cm.getNetworkCapabilities() polling. Use delivered
+                // caps directly so the SSID isn't redacted.
+                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                    trySend(extractSsidFromCaps(caps))
+                }
             }
         } else {
             object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) { emit() }
-                override fun onLost(network: Network) { emit() }
-                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { emit() }
+                override fun onAvailable(network: Network) { trySend(readSsid()) }
+                override fun onLost(network: Network) { trySend(null) }
+                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                    trySend(readSsid())
+                }
             }
         }
         val request = NetworkRequest.Builder()
@@ -57,10 +63,10 @@ class CurrentWifiProvider @Inject constructor(
             .build()
         if (cm != null) {
             cm.registerNetworkCallback(request, callback)
-            emit()
+            trySend(readSsid()) // initial emit — null on S+ until callback fires
             awaitClose { cm.unregisterNetworkCallback(callback) }
         } else {
-            emit()
+            trySend(readSsid())
             awaitClose {}
         }
     }.distinctUntilChanged()
@@ -70,6 +76,15 @@ class CurrentWifiProvider @Inject constructor(
         if (!hasLocationPermission) return null
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) readSsidModern()
         else readSsidLegacy()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun extractSsidFromCaps(caps: NetworkCapabilities): String? {
+        if (!hasLocationPermission) return null
+        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
+        val raw = (caps.transportInfo as? WifiInfo)?.ssid ?: return null
+        if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
+        return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
