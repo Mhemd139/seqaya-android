@@ -130,14 +130,11 @@ fun AddDeviceScreen(
                     onClosePicker = viewModel::closeNetworkPicker,
                     onPickNetwork = viewModel::selectNetworkFromPicker,
                     onOpenLocationSettings = {
-                        // Send to the Location Source page directly. Some OEMs (Samsung)
-                        // bury the toggle under multiple submenus from the generic
-                        // application settings page.
+                        // Launch Settings in our own task so swipe-back returns to the
+                        // wizard, not to Home. Using FLAG_ACTIVITY_NEW_TASK pops us out
+                        // of the wizard's back-stack on some OEMs (Samsung in particular).
                         runCatching {
-                            context.startActivity(
-                                Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                            )
+                            context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                         }
                     },
                     onNext = viewModel::advanceToTap,
