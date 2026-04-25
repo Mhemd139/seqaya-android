@@ -77,9 +77,11 @@ app/src/main/java/com/seqaya/app/
 ## Critical Rules
 
 ### NFC Protocol
-The AID is `F2 23 34 45 56 67`. APDU chunks are 10 bytes. Provisioning payload: `$SSID$Password$UserID$Serial$MoistureTarget$HoldMode$`. Future commands: `CMD_LOCATE`, `CMD_HOLD_TOGGLE`, `CMD_REPROGRAM` (see master plan Phase 4a).
+The AID is `F2 23 34 45 56 67`. APDU chunks are **50 bytes** (`PAYLOAD_PER_CHUNK = 48` payload + 2 status), sized to fit `Adafruit_PN532`'s 64-byte internal packet buffer with margin. Requires firmware **V5+** — older firmware has a 32-byte response buffer and will overflow on 50-byte chunks.
 
-**Never change the protocol without also changing it in `C:\Dev\Seqaya\Firmware`.**
+Provisioning payload is **JSON** (Kotlin Serialization → ArduinoJson on firmware), not the legacy `$`-delimited format — `$` in real-world SSIDs/passwords used to brick devices. Short keys to keep chunks small: `c=command, ssid, pw=password, uid=userId, sn=serial, t=targetMoisture, h=holdMode, k=keepHistory`. Commands: `A=Add, L=Locate, H=HoldToggle, R=Reprogram, D=DryMap, W=WetMap`.
+
+**Never change the protocol (chunk size, AID, key names, command letters) without also changing it in `C:\Dev\Seqaya\Firmware` and re-flashing every device.**
 
 ### Supabase
 - Project: `jybsouuydgstafqsxfbx` (region: ap-northeast-1 / Tokyo, existing).

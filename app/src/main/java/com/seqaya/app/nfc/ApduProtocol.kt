@@ -20,7 +20,7 @@ import java.security.SecureRandom
  *   1. Firmware → app: SELECT AID APDU (12 bytes, F2 23 34 45 56 67).
  *   2. App → firmware: OK 90 00 (armed) or NACK 6A 82 (idle).
  *   3. Firmware → app: poll byte 0x02 until response starts with 90 00.
- *   4. App → firmware: chunks of `[2-byte status][up to 8 payload bytes]`.
+ *   4. App → firmware: chunks of `[2-byte status][up to PAYLOAD_PER_CHUNK payload bytes]`.
  *      Non-terminal status 00 00, terminal 90 00. processResponse() treats
  *      bytes 0-1 of every chunk as status, so the prefix is mandatory on all.
  *
