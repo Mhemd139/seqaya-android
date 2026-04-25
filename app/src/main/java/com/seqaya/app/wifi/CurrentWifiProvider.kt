@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
-import android.net.NetworkRequest
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -38,45 +37,33 @@ class CurrentWifiProvider @Inject constructor(
 
     @SuppressLint("MissingPermission")
     val currentSsid: Flow<String?> = callbackFlow {
+        if (cm == null) {
+            trySend(readSsidLegacy())
+            awaitClose {}
+            return@callbackFlow
+        }
         val callback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             object : ConnectivityManager.NetworkCallback(FLAG_INCLUDE_LOCATION_INFO) {
-                override fun onAvailable(network: Network) { trySend(readSsid()) }
-                override fun onLost(network: Network) { trySend(null) }
-                // On S+, FLAG_INCLUDE_LOCATION_INFO only applies to caps delivered
-                // here — not to cm.getNetworkCapabilities() polling. Use delivered
-                // caps directly so the SSID isn't redacted.
                 override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-                    trySend(extractSsidFromCaps(caps))
+                    trySend(extractSsidFromCaps(caps) ?: readSsidLegacy())
                 }
+                override fun onLost(network: Network) { trySend(null) }
             }
         } else {
             object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) { trySend(readSsid()) }
-                override fun onLost(network: Network) { trySend(null) }
                 override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-                    trySend(readSsid())
+                    trySend(readSsidLegacy())
                 }
+                override fun onLost(network: Network) { trySend(null) }
             }
         }
-        val request = NetworkRequest.Builder()
-            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-            .build()
-        if (cm != null) {
-            cm.registerNetworkCallback(request, callback)
-            trySend(readSsid()) // initial emit — null on S+ until callback fires
-            awaitClose { cm.unregisterNetworkCallback(callback) }
-        } else {
-            trySend(readSsid())
-            awaitClose {}
-        }
+        // registerDefaultNetworkCallback fires onCapabilitiesChanged immediately
+        // for the currently-active network, unlike registerNetworkCallback(request)
+        // which only fires on network *changes*.
+        cm.registerDefaultNetworkCallback(callback)
+        trySend(readSsidLegacy()) // synchronous WifiManager read works in foreground
+        awaitClose { cm.unregisterNetworkCallback(callback) }
     }.distinctUntilChanged()
-
-    @SuppressLint("MissingPermission")
-    private fun readSsid(): String? {
-        if (!hasLocationPermission) return null
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) readSsidModern()
-        else readSsidLegacy()
-    }
 
     @RequiresApi(Build.VERSION_CODES.S)
     private fun extractSsidFromCaps(caps: NetworkCapabilities): String? {
@@ -87,17 +74,9 @@ class CurrentWifiProvider @Inject constructor(
         return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
     }
 
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private fun readSsidModern(): String? {
-        val caps = cm?.getNetworkCapabilities(cm.activeNetwork ?: return null) ?: return null
-        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
-        val raw = (caps.transportInfo as? WifiInfo)?.ssid ?: return null
-        if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
-        return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
-    }
-
     @Suppress("DEPRECATION")
     private fun readSsidLegacy(): String? {
+        if (!hasLocationPermission) return null
         val raw = wifiManager?.connectionInfo?.ssid ?: return null
         if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
         return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
