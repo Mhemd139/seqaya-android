@@ -107,9 +107,13 @@ fun MoistureChart(
     // labels and the model agree on "now". Re-pins when range or points change.
     val windowEndMs = remember(range, points) { System.currentTimeMillis() }
     val windowStartMs = windowEndMs - range.durationMs
+    val windowSpanMs = (windowEndMs - windowStartMs).coerceAtLeast(1L)
 
-    val xValues = remember(points) {
-        points.map { it.timestamp.toEpochMilli().toDouble() }
+    // x-values are normalized to [0..1] within the window. Using raw epoch ms
+    // makes Vico's axis label generator allocate billions of Doubles (OOM) —
+    // its tick stepping doesn't scale to ranges of magnitude ~1e12.
+    val xValues = remember(points, windowStartMs, windowSpanMs) {
+        points.map { (it.timestamp.toEpochMilli() - windowStartMs).toDouble() / windowSpanMs }
     }
     val yValues = remember(points) {
         points.map { it.percent.toDouble() }
@@ -127,20 +131,21 @@ fun MoistureChart(
         areaFill = null,
     )
 
-    // Fixed window: full range on x, full 0..100 on y. Sparse data falls where
-    // it actually is in time rather than being stretched edge-to-edge.
-    val rangeProvider = remember(windowStartMs, windowEndMs) {
+    // Fixed window: 0..1 on x (window fraction), 0..100 on y. Sparse data falls
+    // where it actually is in time rather than being stretched edge-to-edge.
+    val rangeProvider = remember {
         CartesianLayerRangeProvider.fixed(
-            minX = windowStartMs.toDouble(),
-            maxX = windowEndMs.toDouble(),
+            minX = 0.0,
+            maxX = 1.0,
             minY = Y_AXIS_MIN,
             maxY = Y_AXIS_MAX,
         )
     }
 
-    val xFormatter = remember(range) {
+    val xFormatter = remember(range, windowStartMs, windowSpanMs) {
         CartesianValueFormatter { _, value, _ ->
-            formatAxisLabel(Instant.ofEpochMilli(value.toLong()), range)
+            val epochMs = windowStartMs + (value.coerceIn(0.0, 1.0) * windowSpanMs).toLong()
+            formatAxisLabel(Instant.ofEpochMilli(epochMs), range)
         }
     }
     val bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = xFormatter)
