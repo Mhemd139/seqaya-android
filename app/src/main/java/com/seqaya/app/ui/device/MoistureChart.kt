@@ -60,6 +60,12 @@ data class MoisturePoint(val timestamp: Instant, val percent: Int)
 private const val Y_AXIS_MIN = 0.0
 private const val Y_AXIS_MAX = 100.0
 
+// Vico's HorizontalAxis.rememberBottom reserves vertical space for label text +
+// tick + guideline. There's no public API to query the actual reserved height,
+// so we mirror the default (12sp label + ~12dp padding) here so the watering-dot
+// overlay shares the chart's plot rect rather than sitting below the line.
+private val BOTTOM_AXIS_INSET = 24.dp
+
 @Composable
 fun MoistureChart(
     points: List<MoisturePoint>,
@@ -155,6 +161,7 @@ fun MoistureChart(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(bottom = BOTTOM_AXIS_INSET)
                 .pointerInput(pointCount) {
                     detectTapGestures { offset ->
                         val w = size.width.toFloat()
