@@ -15,6 +15,9 @@ interface DeviceDao {
     @Query("SELECT serial FROM devices ORDER BY registeredAtEpochMs ASC")
     suspend fun getAllSerials(): List<String>
 
+    @Query("SELECT serial FROM devices WHERE id = :id LIMIT 1")
+    suspend fun getSerialById(id: String): String?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(devices: List<DeviceEntity>)
 

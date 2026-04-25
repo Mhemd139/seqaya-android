@@ -40,8 +40,11 @@ object SupabaseModule {
 
     @Provides
     @Singleton
-    fun provideDeviceRepository(supabase: SupabaseClient, dao: DeviceDao): DeviceRepository =
-        DeviceRepository(supabase, dao)
+    fun provideDeviceRepository(
+        supabase: SupabaseClient,
+        dao: DeviceDao,
+        readingDao: ReadingDao,
+    ): DeviceRepository = DeviceRepository(supabase, dao, readingDao)
 
     @Provides
     @Singleton
