@@ -14,12 +14,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import android.os.Build
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.seqaya.app.ui.SeqayaRoot
 import com.seqaya.app.ui.auth.SplashScreen
 import com.seqaya.app.ui.theme.Seqaya
 import com.seqaya.app.ui.theme.SeqayaTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
 
 /**
  * Single activity. Hosts the system splash (Theme.Seqaya.Splash → animated
@@ -67,7 +69,12 @@ private fun App(onFirstFrame: () -> Unit) {
             // the in-app composition is laid out — the in-app splash takes
             // over without a visible seam (subject to the minimum-duration
             // floor enforced by setKeepOnScreenCondition).
-            LaunchedEffect(Unit) { onFirstFrame() }
+            LaunchedEffect(Unit) {
+                // API 31+: system splash plays the 1000ms leaf_awaken AVD.
+                // Release only after the animation completes so the user sees it.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) delay(1_000L)
+                onFirstFrame()
+            }
         }
     }
 }
