@@ -17,8 +17,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -103,7 +104,7 @@ class AddDeviceWizardViewModel @Inject constructor(
         val selected = _ui.value.selectedPlant ?: return
         _ui.update { it.copy(step = Step.Wifi, error = null) }
         viewModelScope.launch {
-            val prefilled = runCatching { wifiProvider.currentSsid.first() }.getOrNull()
+            val prefilled = withTimeoutOrNull(1_500) { wifiProvider.currentSsid.firstOrNull { it != null } }
             _ui.update {
                 it.copy(
                     ssid = if (it.ssid.isEmpty() && prefilled != null) prefilled else it.ssid,
@@ -126,7 +127,7 @@ class AddDeviceWizardViewModel @Inject constructor(
     fun onLocationPermissionGranted() {
         if (_ui.value.step != Step.Wifi) return
         viewModelScope.launch {
-            val prefilled = runCatching { wifiProvider.currentSsid.first() }.getOrNull() ?: return@launch
+            val prefilled = withTimeoutOrNull(1_500) { wifiProvider.currentSsid.firstOrNull { it != null } } ?: return@launch
             _ui.update {
                 it.copy(
                     ssid = if (it.ssid.isEmpty()) prefilled else it.ssid,
