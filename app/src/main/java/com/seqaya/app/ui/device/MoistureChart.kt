@@ -59,6 +59,7 @@ data class MoisturePoint(val timestamp: Instant, val percent: Int)
 
 private const val Y_AXIS_MIN = 0.0
 private const val Y_AXIS_MAX = 100.0
+private const val X_AXIS_SCALE = 10_000
 
 // HorizontalAxis.rememberBottom reserves vertical space for label + tick + guideline.
 // Vico exposes no public API to query the actual reserved height, so we pad the
@@ -109,11 +110,15 @@ fun MoistureChart(
     val windowStartMs = windowEndMs - range.durationMs
     val windowSpanMs = (windowEndMs - windowStartMs).coerceAtLeast(1L)
 
-    // x-values are normalized to [0..1] within the window. Using raw epoch ms
-    // makes Vico's axis label generator allocate billions of Doubles (OOM) —
-    // its tick stepping doesn't scale to ranges of magnitude ~1e12.
+    // x-values are scaled to integer [0..X_AXIS_SCALE] within the window. Vico
+    // rejects raw epoch ms (OOM in axis generator) AND values with >4 decimals
+    // ("x values are too precise"), so we use whole numbers.
     val xValues = remember(points, windowStartMs, windowSpanMs) {
-        points.map { (it.timestamp.toEpochMilli() - windowStartMs).toDouble() / windowSpanMs }
+        points.map {
+            ((it.timestamp.toEpochMilli() - windowStartMs).toDouble() / windowSpanMs * X_AXIS_SCALE)
+                .roundToInt()
+                .toDouble()
+        }
     }
     val yValues = remember(points) {
         points.map { it.percent.toDouble() }
@@ -131,12 +136,12 @@ fun MoistureChart(
         areaFill = null,
     )
 
-    // Fixed window: 0..1 on x (window fraction), 0..100 on y. Sparse data falls
-    // where it actually is in time rather than being stretched edge-to-edge.
+    // Fixed window on x, 0..100 on y. Sparse data falls where it actually is
+    // in time rather than being stretched edge-to-edge.
     val rangeProvider = remember {
         CartesianLayerRangeProvider.fixed(
             minX = 0.0,
-            maxX = 1.0,
+            maxX = X_AXIS_SCALE.toDouble(),
             minY = Y_AXIS_MIN,
             maxY = Y_AXIS_MAX,
         )
@@ -144,7 +149,8 @@ fun MoistureChart(
 
     val xFormatter = remember(range, windowStartMs, windowSpanMs) {
         CartesianValueFormatter { _, value, _ ->
-            val epochMs = windowStartMs + (value.coerceIn(0.0, 1.0) * windowSpanMs).toLong()
+            val fraction = (value / X_AXIS_SCALE).coerceIn(0.0, 1.0)
+            val epochMs = windowStartMs + (fraction * windowSpanMs).toLong()
             formatAxisLabel(Instant.ofEpochMilli(epochMs), range)
         }
     }
