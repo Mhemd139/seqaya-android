@@ -7,7 +7,7 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 import com.seqaya.app.BuildConfig
@@ -49,11 +49,11 @@ class AuthRepository(
                 "Google Web Client ID not configured. Add GOOGLE_WEB_CLIENT_ID to local.properties."
             )
         }
-        val option = GetGoogleIdOption.Builder()
-            .setServerClientId(clientId)
-            .setFilterByAuthorizedAccounts(false)
-            .setAutoSelectEnabled(true)
-            .build()
+        // GetSignInWithGoogleOption opens the full Google account chooser sheet
+        // (with avatars, "Add another account" properly wired through Play Services).
+        // GetGoogleIdOption opens the stripped-down One Tap UI which doesn't show
+        // account icons and has a broken "More accounts" flow on some OEMs.
+        val option = GetSignInWithGoogleOption.Builder(clientId).build()
         val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
 
         val idToken: String = try {
