@@ -7,7 +7,7 @@ import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
-import android.net.NetworkRequest
+import android.net.wifi.ScanResult
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -21,6 +21,23 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Window into the device's Wi-Fi state. Used by Add Device wizard for SSID
+ * prefill and the network picker.
+ *
+ * Two distinct read paths exist for the *current* SSID, both required:
+ *  - `WifiManager.connectionInfo` (deprecated, but still functional in
+ *    foreground with fine-location). Used as the synchronous initial emit
+ *    and as a fallback when caps are location-redacted.
+ *  - `ConnectivityManager.NetworkCallback` with `FLAG_INCLUDE_LOCATION_INFO`
+ *    on Android 12+. Required because synchronous polling of
+ *    `getNetworkCapabilities(...).transportInfo` returns redacted SSID on S+.
+ *
+ * The flow is built around `registerDefaultNetworkCallback`, which fires
+ * `onCapabilitiesChanged` immediately for the active network on registration —
+ * unlike `registerNetworkCallback(NetworkRequest)` which only delivers caps on
+ * network *changes* (so a stable connection never delivers anything).
+ */
 @Singleton
 class CurrentWifiProvider @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -38,45 +55,30 @@ class CurrentWifiProvider @Inject constructor(
 
     @SuppressLint("MissingPermission")
     val currentSsid: Flow<String?> = callbackFlow {
+        if (cm == null) {
+            trySend(readSsidLegacy())
+            awaitClose {}
+            return@callbackFlow
+        }
         val callback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             object : ConnectivityManager.NetworkCallback(FLAG_INCLUDE_LOCATION_INFO) {
-                override fun onAvailable(network: Network) { trySend(readSsid()) }
-                override fun onLost(network: Network) { trySend(null) }
-                // On S+, FLAG_INCLUDE_LOCATION_INFO only applies to caps delivered
-                // here — not to cm.getNetworkCapabilities() polling. Use delivered
-                // caps directly so the SSID isn't redacted.
                 override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-                    trySend(extractSsidFromCaps(caps))
+                    trySend(extractSsidFromCaps(caps) ?: readSsidLegacy())
                 }
+                override fun onLost(network: Network) { trySend(null) }
             }
         } else {
             object : ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: Network) { trySend(readSsid()) }
-                override fun onLost(network: Network) { trySend(null) }
                 override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-                    trySend(readSsid())
+                    trySend(readSsidLegacy())
                 }
+                override fun onLost(network: Network) { trySend(null) }
             }
         }
-        val request = NetworkRequest.Builder()
-            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-            .build()
-        if (cm != null) {
-            cm.registerNetworkCallback(request, callback)
-            trySend(readSsid()) // initial emit — null on S+ until callback fires
-            awaitClose { cm.unregisterNetworkCallback(callback) }
-        } else {
-            trySend(readSsid())
-            awaitClose {}
-        }
+        cm.registerDefaultNetworkCallback(callback)
+        trySend(readSsidLegacy())
+        awaitClose { cm.unregisterNetworkCallback(callback) }
     }.distinctUntilChanged()
-
-    @SuppressLint("MissingPermission")
-    private fun readSsid(): String? {
-        if (!hasLocationPermission) return null
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) readSsidModern()
-        else readSsidLegacy()
-    }
 
     @RequiresApi(Build.VERSION_CODES.S)
     private fun extractSsidFromCaps(caps: NetworkCapabilities): String? {
@@ -87,39 +89,68 @@ class CurrentWifiProvider @Inject constructor(
         return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
     }
 
-    @RequiresApi(Build.VERSION_CODES.Q)
-    private fun readSsidModern(): String? {
-        val caps = cm?.getNetworkCapabilities(cm.activeNetwork ?: return null) ?: return null
-        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
-        val raw = (caps.transportInfo as? WifiInfo)?.ssid ?: return null
-        if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
-        return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
-    }
-
     @Suppress("DEPRECATION")
     private fun readSsidLegacy(): String? {
+        if (!hasLocationPermission) return null
         val raw = wifiManager?.connectionInfo?.ssid ?: return null
         if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
         return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
     }
 
+    /**
+     * Snapshot of all visible Wi-Fi networks (both bands), sorted by signal.
+     *
+     * Returns 5 GHz networks too — the wizard's picker UI needs them so it can
+     * disable them with a "5 GHz, won't work" label rather than hiding them
+     * silently and leaving the user wondering where their network went.
+     *
+     * Returns empty list if location permission is denied or the scan fails.
+     */
     @SuppressLint("MissingPermission")
     @Suppress("DEPRECATION")
-    fun scanResultSsids(): List<String> {
+    fun scanNetworks(): List<WifiNetwork> {
         if (!hasLocationPermission) return emptyList()
         val mgr = wifiManager ?: return emptyList()
         return runCatching {
             mgr.scanResults
-                .filter { it.frequency in TWO_POINT_FOUR_GHZ_RANGE }
                 .filter { !it.SSID.isNullOrBlank() }
+                // Many home routers broadcast the same SSID on both bands. Prefer
+                // the 2.4 GHz variant when collapsing duplicates so the picker
+                // doesn't disable a network the device could actually join.
+                .groupBy { it.SSID }
+                .map { (_, group) ->
+                    group.firstOrNull { it.frequency in TWO_POINT_FOUR_GHZ_RANGE }
+                        ?: group.maxBy { it.level }
+                }
                 .sortedByDescending { it.level }
-                .map { it.SSID }
-                .distinct()
+                .map { it.toWifiNetwork() }
         }.getOrDefault(emptyList())
     }
 
+    @Suppress("DEPRECATION")
+    private fun ScanResult.toWifiNetwork(): WifiNetwork = WifiNetwork(
+        ssid = SSID,
+        is24GHz = frequency in TWO_POINT_FOUR_GHZ_RANGE,
+        signalBars = WifiManager.calculateSignalLevel(level, SIGNAL_BAR_COUNT),
+    )
+
     private companion object {
         const val UNKNOWN_SSID = "<unknown ssid>"
+        const val SIGNAL_BAR_COUNT = 4
         val TWO_POINT_FOUR_GHZ_RANGE = 2400..2500
     }
 }
+
+/**
+ * Visible Wi-Fi network for picker UI.
+ *
+ * @property signalBars 0..3 (4 levels), where 3 is strongest.
+ * @property is24GHz true if the network is on the 2.4 GHz band the Seqaya
+ *   firmware can connect to. 5 GHz networks are surfaced anyway so the picker
+ *   can show them as disabled rather than hiding them.
+ */
+data class WifiNetwork(
+    val ssid: String,
+    val is24GHz: Boolean,
+    val signalBars: Int,
+)

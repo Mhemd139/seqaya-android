@@ -8,6 +8,7 @@ import com.seqaya.app.domain.model.Plant
 import com.seqaya.app.nfc.ApduProtocol
 import com.seqaya.app.nfc.ProvisioningSession
 import com.seqaya.app.wifi.CurrentWifiProvider
+import com.seqaya.app.wifi.WifiNetwork
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
@@ -33,6 +34,8 @@ data class AddDeviceUiState(
     val ssid: String = "",
     val password: String = "",
     val ssidPrefilled: Boolean = false,
+    val pickerOpen: Boolean = false,
+    val pickerNetworks: List<WifiNetwork> = emptyList(),
     val sessionStatus: ProvisioningSession.Status = ProvisioningSession.Status.Idle,
     val serial: String? = null,
     val createdDeviceNickname: String? = null,
@@ -76,6 +79,10 @@ class AddDeviceWizardViewModel @Inject constructor(
     val events = _events.receiveAsFlow()
 
     private var hasInsertedDevice = false
+    // Set when the user taps "Pick from nearby networks" without location
+    // permission. After grant, re-runs openNetworkPicker instead of just
+    // re-prefilling the SSID — keeps the action they took intent-coupled.
+    private var pickerPendingAfterPermission = false
 
     init {
         loadPlants()
@@ -117,15 +124,52 @@ class AddDeviceWizardViewModel @Inject constructor(
         }
     }
 
-    fun setSsid(value: String) = _ui.update { it.copy(ssid = value) }
+    fun setSsid(value: String) = _ui.update {
+        // Manual edits clear the prefilled badge so the user isn't told their
+        // hand-typed value was system-detected.
+        it.copy(ssid = value, ssidPrefilled = false)
+    }
     fun setPassword(value: String) = _ui.update { it.copy(password = value) }
+
+    fun openNetworkPicker() {
+        if (!wifiProvider.hasLocationPermission) {
+            pickerPendingAfterPermission = true
+            viewModelScope.launch { _events.send(AddDeviceEvent.RequestLocationPermission) }
+            return
+        }
+        // Read off the lambda — scanResults touches WifiManager and we don't
+        // want it inside _ui.update's atomic update block.
+        val networks = wifiProvider.scanNetworks()
+        _ui.update { it.copy(pickerOpen = true, pickerNetworks = networks) }
+    }
+
+    fun closeNetworkPicker() {
+        _ui.update { it.copy(pickerOpen = false) }
+    }
+
+    fun selectNetworkFromPicker(ssid: String) {
+        _ui.update {
+            it.copy(
+                ssid = ssid,
+                ssidPrefilled = false,
+                pickerOpen = false,
+                error = null,
+            )
+        }
+    }
 
     /**
      * Invoked by AddDeviceScreen after the Android permission dialog returns a grant.
-     * Retry the SSID prefill now that we can read WifiManager.connectionInfo.
+     * Retry whichever action triggered the request — picker open if the user
+     * tapped "Pick from nearby networks", otherwise SSID prefill.
      */
     fun onLocationPermissionGranted() {
         if (_ui.value.step != Step.Wifi) return
+        if (pickerPendingAfterPermission) {
+            pickerPendingAfterPermission = false
+            openNetworkPicker()
+            return
+        }
         viewModelScope.launch {
             val prefilled = withTimeoutOrNull(1_500) { wifiProvider.currentSsid.firstOrNull { it != null } } ?: return@launch
             _ui.update {
