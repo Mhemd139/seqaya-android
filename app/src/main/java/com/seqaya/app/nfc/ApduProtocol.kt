@@ -38,8 +38,12 @@ object ApduProtocol {
 
     private val PULL_BYTE = byteArrayOf(0x02)
 
-    /** Max payload bytes per chunk — 10-byte total chunk minus 2-byte status prefix. */
-    const val PAYLOAD_PER_CHUNK = 8
+    /** Max payload bytes per chunk. Adafruit_PN532's internal pn532_packetbuffer is 64 B,
+     *  of which 8 bytes are framing and 2 are our status prefix, leaving ~54 B for payload.
+     *  48 gives a safe margin. With 8-byte chunks an Add payload took ~20 round-trips and
+     *  exceeded the HCE link window on most phones; at 48 it's 3-4 round-trips, comfortably
+     *  within the link-maintenance budget. */
+    const val PAYLOAD_PER_CHUNK = 48
 
     /** Canonical SELECT AID APDU from firmware: 00 A4 04 00 06 <AID> 00. */
     private val SELECT_AID_HEADER = byteArrayOf(0x00, 0xA4.toByte(), 0x04, 0x00, 0x06)
