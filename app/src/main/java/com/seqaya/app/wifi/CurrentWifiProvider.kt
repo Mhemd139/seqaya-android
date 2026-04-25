@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -11,6 +12,7 @@ import android.net.wifi.ScanResult
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
+import androidx.core.location.LocationManagerCompat
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
@@ -54,6 +56,19 @@ class CurrentWifiProvider @Inject constructor(
             context, Manifest.permission.ACCESS_FINE_LOCATION,
         ) == PackageManager.PERMISSION_GRANTED
 
+    /**
+     * OS-level Location toggle (Settings → Location → master switch). Independent
+     * of the runtime permission grant: even with FINE_LOCATION granted, the system
+     * redacts SSID and refuses scans when this toggle is off. UI surfaces this as
+     * a different recovery (open Settings) than missing permission (request grant).
+     */
+    val isLocationServicesEnabled: Boolean
+        get() {
+            val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+                ?: return false
+            return LocationManagerCompat.isLocationEnabled(lm)
+        }
+
     @SuppressLint("MissingPermission")
     val currentSsid: Flow<String?> = callbackFlow {
         if (cm == null) {
@@ -84,7 +99,7 @@ class CurrentWifiProvider @Inject constructor(
     @RequiresApi(Build.VERSION_CODES.S)
     private fun extractSsidFromCaps(caps: NetworkCapabilities): String? {
         if (!hasLocationPermission) {
-            Log.d(TAG, "extractSsidFromCaps: no location permission")
+            Log.d(TAG, "extractSsidFromCaps: no location permission (locSvcOn=$isLocationServicesEnabled)")
             return null
         }
         if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
@@ -92,7 +107,7 @@ class CurrentWifiProvider @Inject constructor(
             return null
         }
         val raw = (caps.transportInfo as? WifiInfo)?.ssid
-        Log.d(TAG, "extractSsidFromCaps: raw='$raw'")
+        Log.d(TAG, "extractSsidFromCaps: raw='$raw' locSvcOn=$isLocationServicesEnabled")
         if (raw == null || raw.isEmpty() || raw == UNKNOWN_SSID) return null
         return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
     }
@@ -100,11 +115,11 @@ class CurrentWifiProvider @Inject constructor(
     @Suppress("DEPRECATION")
     private fun readSsidLegacy(): String? {
         if (!hasLocationPermission) {
-            Log.d(TAG, "readSsidLegacy: no location permission")
+            Log.d(TAG, "readSsidLegacy: no location permission (locSvcOn=$isLocationServicesEnabled)")
             return null
         }
         val raw = wifiManager?.connectionInfo?.ssid
-        Log.d(TAG, "readSsidLegacy: raw='$raw'")
+        Log.d(TAG, "readSsidLegacy: raw='$raw' locSvcOn=$isLocationServicesEnabled")
         if (raw == null || raw.isEmpty() || raw == UNKNOWN_SSID) return null
         return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
     }
@@ -159,7 +174,7 @@ class CurrentWifiProvider @Inject constructor(
             Log.w(TAG, "scanResults read failed", it)
             return emptyList()
         }
-        Log.d(TAG, "scanNetworks: startScan=$scanStarted, raw count=${results.size}")
+        Log.d(TAG, "scanNetworks: startScan=$scanStarted, raw count=${results.size}, locSvcOn=$isLocationServicesEnabled")
         return results
             .filter { !it.SSID.isNullOrBlank() }
             // Many home routers broadcast the same SSID on both bands. Prefer
