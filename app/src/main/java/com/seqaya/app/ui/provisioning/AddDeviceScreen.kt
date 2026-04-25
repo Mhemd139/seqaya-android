@@ -3,8 +3,8 @@ package com.seqaya.app.ui.provisioning
 import android.Manifest
 import android.content.Intent
 import android.provider.Settings
-import android.util.Log
-import androidx.activity.compose.BackHandler
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -28,15 +28,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.seqaya.app.ui.theme.Seqaya
 
@@ -57,37 +61,65 @@ fun AddDeviceScreen(
         if (granted) viewModel.onLocationPermissionGranted()
     }
 
-    // Launching system Settings via StartActivityForResult instead of a plain
-    // startActivity + lifecycle observer. The result callback fires deterministically
-    // when Settings closes, with no chance of a stray back-press leaking into our
-    // BackHandler and cancelling the wizard (which happened with the lifecycle
-    // observer approach on Samsung One UI).
+    // Launch system Settings without expecting a result. ACTION_LOCATION_SOURCE_SETTINGS
+    // doesn't deliver a result on back. We re-check the toggle in a lifecycle observer
+    // tied to ON_START so the banner clears as soon as we're foregrounded again.
     val settingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
     ) {
-        Log.d("AddDeviceScreen", "settingsLauncher RESULT fired")
         viewModel.refreshLocationServices()
     }
 
+    // Lifecycle-scoped re-check on resume. Belt-and-suspenders to cover the case where
+    // settingsLauncher's result callback never fires (Settings doesn't setResult/finish
+    // for ACTION_LOCATION_SOURCE_SETTINGS — confirmed via logs).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) viewModel.refreshLocationServices()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Explicit OnBackPressedCallback wired through the dispatcher rather than Compose's
+    // BackHandler. After returning from system Settings on Samsung One UI, BackHandler
+    // can lose its registration — confirmed in logs: setTopOnBackInvokedCallback never
+    // points back at our callback after Settings dismisses, so the next system back
+    // bypasses our cancel() and the nav graph pops directly to Home. Re-installing on
+    // every ON_RESUME avoids the gap.
+    val backDispatcherOwner = LocalOnBackPressedDispatcherOwner.current
+    DisposableEffect(lifecycleOwner, backDispatcherOwner) {
+        val callback = object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                viewModel.cancel()
+            }
+        }
+        val resumeObserver = LifecycleEventObserver { _, event ->
+            // Re-add on each ON_RESUME because the dispatcher may have been clobbered
+            // by the system Settings activity while we were backgrounded.
+            if (event == Lifecycle.Event.ON_RESUME) {
+                callback.remove()
+                backDispatcherOwner?.onBackPressedDispatcher?.addCallback(lifecycleOwner, callback)
+            }
+        }
+        backDispatcherOwner?.onBackPressedDispatcher?.addCallback(lifecycleOwner, callback)
+        lifecycleOwner.lifecycle.addObserver(resumeObserver)
+        onDispose {
+            callback.remove()
+            lifecycleOwner.lifecycle.removeObserver(resumeObserver)
+        }
+    }
+
     LaunchedEffect(Unit) {
-        Log.d("AddDeviceScreen", "AddDeviceScreen composed (event collector started)")
         viewModel.events.collect { ev ->
-            Log.d("AddDeviceScreen", "EVENT: $ev")
             when (ev) {
                 is AddDeviceEvent.Finished -> onFinish(ev.deviceSerial, ev.nickname)
-                AddDeviceEvent.Cancelled -> {
-                    Log.d("AddDeviceScreen", "Cancelled -> onCancel() (POPPING TO HOME)")
-                    onCancel()
-                }
+                AddDeviceEvent.Cancelled -> onCancel()
                 AddDeviceEvent.RequestLocationPermission ->
                     locationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             }
         }
-    }
-
-    BackHandler {
-        Log.d("AddDeviceScreen", "BackHandler FIRED -> viewModel.cancel()")
-        viewModel.cancel()
     }
 
     Column(
@@ -130,11 +162,8 @@ fun AddDeviceScreen(
                     onClosePicker = viewModel::closeNetworkPicker,
                     onPickNetwork = viewModel::selectNetworkFromPicker,
                     onOpenLocationSettings = {
-                        Log.d("AddDeviceScreen", "Open Location Settings tapped, launching")
                         runCatching {
                             settingsLauncher.launch(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-                        }.onFailure {
-                            Log.e("AddDeviceScreen", "Settings launch failed", it)
                         }
                     },
                     onNext = viewModel::advanceToTap,
