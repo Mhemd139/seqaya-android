@@ -54,6 +54,7 @@ fun WifiStep(
     ssid: String,
     password: String,
     ssidPrefilled: Boolean,
+    locationServicesOff: Boolean,
     pickerOpen: Boolean,
     pickerNetworks: List<WifiNetwork>,
     onSsidChange: (String) -> Unit,
@@ -80,6 +81,11 @@ fun WifiStep(
             color = Seqaya.colors.textSecondary,
         )
         Spacer(Modifier.height(28.dp))
+
+        if (locationServicesOff) {
+            LocationServicesBanner()
+            Spacer(Modifier.height(20.dp))
+        }
 
         FieldLabel("Network")
         Spacer(Modifier.height(6.dp))
@@ -181,6 +187,40 @@ fun WifiStep(
                 onPick = onPickNetwork,
             )
         }
+    }
+}
+
+/**
+ * Banner shown when the OS Location toggle is off. Without it, every Wi-Fi
+ * read returns redacted data (`<unknown ssid>`) regardless of permission grants —
+ * Android's privacy contract, not something we can read around.
+ *
+ * No deep-link button: launching Settings via Intent puts the wizard's nav entry
+ * in a state where returning pops to Home on Samsung One UI. Users open Quick
+ * Settings (swipe down twice) and toggle Location from there — no app round-trip,
+ * no nav stack disturbance. Wizard auto-detects when they come back.
+ */
+@Composable
+private fun LocationServicesBanner() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Seqaya.colors.accentBrownSoft)
+            .border(1.dp, Seqaya.colors.accentBrown, RoundedCornerShape(10.dp))
+            .padding(14.dp),
+    ) {
+        Text(
+            text = "Turn on Location to detect your Wi-Fi",
+            style = Seqaya.type.body.copy(fontWeight = FontWeight.SemiBold),
+            color = Seqaya.colors.accentBrownInk,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "Swipe down from the top of your screen, then tap Location to turn it on. We don't track your location — Android just requires this to read the Wi-Fi name.",
+            style = Seqaya.type.body.copy(fontSize = 13.sp, lineHeight = 18.sp),
+            color = Seqaya.colors.accentBrownInk,
+        )
     }
 }
 

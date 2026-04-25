@@ -16,7 +16,6 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -34,6 +33,7 @@ data class AddDeviceUiState(
     val ssid: String = "",
     val password: String = "",
     val ssidPrefilled: Boolean = false,
+    val locationServicesOff: Boolean = false,
     val pickerOpen: Boolean = false,
     val pickerNetworks: List<WifiNetwork> = emptyList(),
     val sessionStatus: ProvisioningSession.Status = ProvisioningSession.Status.Idle,
@@ -101,6 +101,29 @@ class AddDeviceWizardViewModel @Inject constructor(
                 }
             }
         }
+        // Reactive Location toggle. Fires immediately when the user flips it from
+        // Quick Settings — no need to leave the app, no lifecycle observer needed.
+        viewModelScope.launch {
+            wifiProvider.locationServicesEnabled.collect { enabled ->
+                val nowOff = !enabled
+                val previouslyOff = _ui.value.locationServicesOff
+                _ui.update { it.copy(locationServicesOff = nowOff) }
+                // When the user just enabled Location while sitting on the Wi-Fi
+                // step, retry the SSID prefill that quietly failed on entry.
+                if (previouslyOff && enabled && _ui.value.step == Step.Wifi) {
+                    wifiProvider.triggerScan()
+                    val prefilled = withTimeoutOrNull(1_500) {
+                        wifiProvider.currentSsid.firstOrNull { it != null }
+                    } ?: return@collect
+                    _ui.update {
+                        it.copy(
+                            ssid = if (it.ssid.isEmpty()) prefilled else it.ssid,
+                            ssidPrefilled = it.ssid.isEmpty(),
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun selectPlant(plant: Plant) {
@@ -109,7 +132,16 @@ class AddDeviceWizardViewModel @Inject constructor(
 
     fun advanceToWifi() {
         val selected = _ui.value.selectedPlant ?: return
-        _ui.update { it.copy(step = Step.Wifi, error = null) }
+        _ui.update {
+            it.copy(
+                step = Step.Wifi,
+                error = null,
+                locationServicesOff = !wifiProvider.isLocationServicesEnabled,
+            )
+        }
+        // Warm the scan cache so the picker has fresh results when opened.
+        // No-op if location permission isn't granted yet.
+        wifiProvider.triggerScan()
         viewModelScope.launch {
             val prefilled = withTimeoutOrNull(1_500) { wifiProvider.currentSsid.firstOrNull { it != null } }
             _ui.update {
@@ -165,6 +197,9 @@ class AddDeviceWizardViewModel @Inject constructor(
      */
     fun onLocationPermissionGranted() {
         if (_ui.value.step != Step.Wifi) return
+        // Permission was just granted, so any earlier triggerScan() in
+        // advanceToWifi() was a no-op. Fire one now so the cache has data.
+        wifiProvider.triggerScan()
         if (pickerPendingAfterPermission) {
             pickerPendingAfterPermission = false
             openNetworkPicker()

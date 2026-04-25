@@ -66,7 +66,6 @@ fun AddDeviceScreen(
     }
 
     BackHandler {
-        // Always route back through VM so the session is dismissed cleanly.
         viewModel.cancel()
     }
 
@@ -101,6 +100,7 @@ fun AddDeviceScreen(
                     ssid = state.ssid,
                     password = state.password,
                     ssidPrefilled = state.ssidPrefilled,
+                    locationServicesOff = state.locationServicesOff,
                     pickerOpen = state.pickerOpen,
                     pickerNetworks = state.pickerNetworks,
                     onSsidChange = viewModel::setSsid,
