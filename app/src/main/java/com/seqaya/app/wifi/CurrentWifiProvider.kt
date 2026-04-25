@@ -42,9 +42,9 @@ class CurrentWifiProvider @Inject constructor(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
                 FLAG_INCLUDE_LOCATION_INFO else 0
         ) {
-            override fun onAvailable(network: Network) = emit()
-            override fun onLost(network: Network) = emit()
-            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = emit()
+            override fun onAvailable(network: Network) { emit() }
+            override fun onLost(network: Network) { emit() }
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { emit() }
         }
         val request = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
