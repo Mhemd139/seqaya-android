@@ -40,8 +40,8 @@
              reads as floating on cream, identical to the in-app frame. -->
         <item name="windowSplashScreenBackground">@color/bg_cream</item>
         <item name="windowSplashScreenIconBackgroundColor">@color/bg_cream</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/leaf_mark</item>
-        <item name="windowSplashScreenAnimationDuration">0</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/leaf_awaken</item>
+        <item name="windowSplashScreenAnimationDuration">1000</item>
         <item name="postSplashScreenTheme">@style/Theme.Seqaya</item>
     </style>
 </resources>

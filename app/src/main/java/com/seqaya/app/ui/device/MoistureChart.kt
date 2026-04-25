@@ -30,13 +30,16 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
+import com.patrykandpatrick.vico.compose.cartesian.axis.rememberBottom
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLine
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
 import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
 import com.patrykandpatrick.vico.compose.cartesian.rememberVicoScrollState
 import com.patrykandpatrick.vico.compose.common.fill
+import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
 import com.patrykandpatrick.vico.core.cartesian.data.CartesianLayerRangeProvider
+import com.patrykandpatrick.vico.core.cartesian.data.CartesianValueFormatter
 import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
 import com.patrykandpatrick.vico.core.cartesian.decoration.HorizontalLine
 import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
@@ -47,6 +50,8 @@ import com.seqaya.app.R
 import com.seqaya.app.ui.theme.Seqaya
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -55,12 +60,19 @@ data class MoisturePoint(val timestamp: Instant, val percent: Int)
 private const val Y_AXIS_MIN = 0.0
 private const val Y_AXIS_MAX = 100.0
 
+// Vico's HorizontalAxis.rememberBottom reserves vertical space for label text +
+// tick + guideline. There's no public API to query the actual reserved height,
+// so we mirror the default (12sp label + ~12dp padding) here so the watering-dot
+// overlay shares the chart's plot rect rather than sitting below the line.
+private val BOTTOM_AXIS_INSET = 24.dp
+
 @Composable
 fun MoistureChart(
     points: List<MoisturePoint>,
     wateringEvents: List<Instant>,
     targetPercent: Int?,
     modifier: Modifier = Modifier,
+    range: ChartRange = ChartRange.DAYS_30,
 ) {
     val colors = Seqaya.colors
 
@@ -98,6 +110,15 @@ fun MoistureChart(
 
     val rangeProvider = remember { CartesianLayerRangeProvider.fixed(minY = Y_AXIS_MIN, maxY = Y_AXIS_MAX) }
 
+    val xFormatter = remember(points, range) {
+        CartesianValueFormatter { _, value, _ ->
+            val idx = value.toInt().coerceIn(0, (points.size - 1).coerceAtLeast(0))
+            val ts = points.getOrNull(idx)?.timestamp ?: return@CartesianValueFormatter ""
+            formatAxisLabel(ts, range)
+        }
+    }
+    val bottomAxis = HorizontalAxis.rememberBottom(valueFormatter = xFormatter)
+
     val targetDecoration = remember(targetPercent, borderColor) {
         if (targetPercent == null) emptyList() else listOf(
             HorizontalLine(
@@ -129,6 +150,7 @@ fun MoistureChart(
                     lineProvider = LineCartesianLayer.LineProvider.series(line),
                     rangeProvider = rangeProvider,
                 ),
+                bottomAxis = bottomAxis,
                 decorations = targetDecoration,
             ),
             modelProducer = modelProducer,
@@ -139,6 +161,7 @@ fun MoistureChart(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(bottom = BOTTOM_AXIS_INSET)
                 .pointerInput(pointCount) {
                     detectTapGestures { offset ->
                         val w = size.width.toFloat()
@@ -195,6 +218,17 @@ fun MoistureChart(
             }
         }
     }
+}
+
+private val AXIS_ZONE: ZoneId = ZoneId.systemDefault()
+private val HOUR_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm").withZone(AXIS_ZONE)
+private val DAY_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE").withZone(AXIS_ZONE)
+private val MONTH_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM d").withZone(AXIS_ZONE)
+
+private fun formatAxisLabel(ts: Instant, range: ChartRange): String = when (range) {
+    ChartRange.HOURS_24 -> HOUR_FORMATTER.format(ts)
+    ChartRange.DAYS_7 -> DAY_FORMATTER.format(ts)
+    ChartRange.DAYS_30 -> MONTH_FORMATTER.format(ts)
 }
 
 private fun formatRelative(ts: Instant, now: Instant): String {

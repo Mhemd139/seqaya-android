@@ -303,7 +303,7 @@ private fun SuccessContent(
         ContextualAction.Locate -> "$nickname is blinking."
         ContextualAction.HoldToggle -> "Paused."
         ContextualAction.DryMap -> "Dry baseline captured."
-        ContextualAction.WetMap -> "Fully calibrated."
+        ContextualAction.WetMap -> "Put the sensor back in soil. Device paused 30 seconds."
     }
     val illustration: @Composable () -> Unit = {
         when (state.action) {

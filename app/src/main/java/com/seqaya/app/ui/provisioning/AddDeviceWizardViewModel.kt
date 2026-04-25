@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -100,22 +101,19 @@ class AddDeviceWizardViewModel @Inject constructor(
 
     fun advanceToWifi() {
         val selected = _ui.value.selectedPlant ?: return
-        val prefilled = runCatching { wifiProvider.currentSsid() }.getOrNull()
-        _ui.update {
-            it.copy(
-                step = Step.Wifi,
-                ssid = if (it.ssid.isEmpty() && prefilled != null) prefilled else it.ssid,
-                ssidPrefilled = prefilled != null && it.ssid.isEmpty(),
-                error = null,
-            )
-        }
-        if (prefilled == null && !wifiProvider.hasLocationPermission) {
-            viewModelScope.launch {
+        _ui.update { it.copy(step = Step.Wifi, error = null) }
+        viewModelScope.launch {
+            val prefilled = runCatching { wifiProvider.currentSsid.first() }.getOrNull()
+            _ui.update {
+                it.copy(
+                    ssid = if (it.ssid.isEmpty() && prefilled != null) prefilled else it.ssid,
+                    ssidPrefilled = prefilled != null && it.ssid.isEmpty(),
+                )
+            }
+            if (prefilled == null && !wifiProvider.hasLocationPermission) {
                 _events.send(AddDeviceEvent.RequestLocationPermission)
             }
         }
-        // `selected` used for target default in arming below; no-op here.
-        @Suppress("UNUSED_VARIABLE") val _ignore = selected
     }
 
     fun setSsid(value: String) = _ui.update { it.copy(ssid = value) }
@@ -126,14 +124,15 @@ class AddDeviceWizardViewModel @Inject constructor(
      * Retry the SSID prefill now that we can read WifiManager.connectionInfo.
      */
     fun onLocationPermissionGranted() {
-        val current = _ui.value
-        if (current.step != Step.Wifi) return
-        val prefilled = runCatching { wifiProvider.currentSsid() }.getOrNull() ?: return
-        _ui.update {
-            it.copy(
-                ssid = if (it.ssid.isEmpty()) prefilled else it.ssid,
-                ssidPrefilled = it.ssid.isEmpty(),
-            )
+        if (_ui.value.step != Step.Wifi) return
+        viewModelScope.launch {
+            val prefilled = runCatching { wifiProvider.currentSsid.first() }.getOrNull() ?: return@launch
+            _ui.update {
+                it.copy(
+                    ssid = if (it.ssid.isEmpty()) prefilled else it.ssid,
+                    ssidPrefilled = it.ssid.isEmpty(),
+                )
+            }
         }
     }
 

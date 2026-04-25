@@ -4,70 +4,92 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Thin wrapper around [WifiManager] for the Add Device wizard's SSID prefill + picker.
- *
- * Android's security model forbids reading saved Wi-Fi passwords — this is an
- * immutable platform constraint, not something we work around. We only read:
- *  - the SSID of the currently-connected network (for prefill)
- *  - scan results (when the user wants a different network)
- *
- * Both require [Manifest.permission.ACCESS_FINE_LOCATION] on API 29+. If the
- * permission is denied, [currentSsid] returns null and the wizard falls back
- * to an empty field the user fills manually.
- */
 @Singleton
 class CurrentWifiProvider @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-    // Wi-Fi hardware is not declared as a required feature in AndroidManifest, so
-    // getSystemService can legally return null on devices without Wi-Fi (rare, but
-    // possible on some Chrome OS ARC containers and Android TV form factors).
-    // Safe-cast and guard every read so null propagates to "no SSID" instead of crashing.
+    private val cm: ConnectivityManager? = context.getSystemService(ConnectivityManager::class.java)
+
+    @Suppress("DEPRECATION")
     private val wifiManager: WifiManager? = context.applicationContext
         .getSystemService(Context.WIFI_SERVICE) as? WifiManager
 
-    /** True if we hold ACCESS_FINE_LOCATION at runtime (required for SSID access). */
     val hasLocationPermission: Boolean
         get() = ContextCompat.checkSelfPermission(
             context, Manifest.permission.ACCESS_FINE_LOCATION,
         ) == PackageManager.PERMISSION_GRANTED
 
-    /**
-     * Returns the SSID of the currently-connected Wi-Fi network, stripped of
-     * quote wrapping, or null if:
-     *   - location permission is denied
-     *   - Wi-Fi is off
-     *   - phone is not connected to a network
-     *   - SSID is hidden/unavailable
-     */
-    fun currentSsid(): String? {
+    @SuppressLint("MissingPermission")
+    val currentSsid: Flow<String?> = callbackFlow {
+        val emit = { trySend(readSsid()) }
+        val callback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            object : ConnectivityManager.NetworkCallback(FLAG_INCLUDE_LOCATION_INFO) {
+                override fun onAvailable(network: Network) { emit() }
+                override fun onLost(network: Network) { emit() }
+                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { emit() }
+            }
+        } else {
+            object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) { emit() }
+                override fun onLost(network: Network) { emit() }
+                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { emit() }
+            }
+        }
+        val request = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .build()
+        if (cm != null) {
+            cm.registerNetworkCallback(request, callback)
+            emit()
+            awaitClose { cm.unregisterNetworkCallback(callback) }
+        } else {
+            emit()
+            awaitClose {}
+        }
+    }.distinctUntilChanged()
+
+    @SuppressLint("MissingPermission")
+    private fun readSsid(): String? {
         if (!hasLocationPermission) return null
-        val mgr = wifiManager ?: return null
-        @Suppress("DEPRECATION")
-        val info = mgr.connectionInfo ?: return null
-        val raw = info.ssid ?: return null
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) readSsidModern()
+        else readSsidLegacy()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun readSsidModern(): String? {
+        val caps = cm?.getNetworkCapabilities(cm.activeNetwork ?: return null) ?: return null
+        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
+        val raw = (caps.transportInfo as? WifiInfo)?.ssid ?: return null
         if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
-        // WifiManager returns SSIDs wrapped in quotes: "MyNetwork" — strip them.
         return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
     }
 
-    /**
-     * 2.4-GHz networks visible in the last scan, sorted by signal strength.
-     * Returns empty list if permission denied or scan unavailable.
-     */
-    // Lint's MissingPermission check can't reason through hasLocationPermission,
-    // but we do guard before touching scanResults. SecurityException is caught as
-    // belt-and-suspenders in case the permission is revoked between the check and
-    // the call on older API levels.
+    @Suppress("DEPRECATION")
+    private fun readSsidLegacy(): String? {
+        val raw = wifiManager?.connectionInfo?.ssid ?: return null
+        if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
+        return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
+    }
+
     @SuppressLint("MissingPermission")
-    @Suppress("DEPRECATION") // WifiManager.startScan / scanResults deprecated on API 28+
+    @Suppress("DEPRECATION")
     fun scanResultSsids(): List<String> {
         if (!hasLocationPermission) return emptyList()
         val mgr = wifiManager ?: return emptyList()
@@ -83,6 +105,6 @@ class CurrentWifiProvider @Inject constructor(
 
     private companion object {
         const val UNKNOWN_SSID = "<unknown ssid>"
-        val TWO_POINT_FOUR_GHZ_RANGE = 2400..2500 // MHz
+        val TWO_POINT_FOUR_GHZ_RANGE = 2400..2500
     }
 }

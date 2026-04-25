@@ -113,7 +113,8 @@ fun DeviceDetailScreen(
                 points = state.points,
                 wateringEvents = state.wateringEvents,
                 targetPercent = state.device?.targetMoisturePercent,
-                modifier = Modifier.fillMaxWidth().height(110.dp),
+                modifier = Modifier.fillMaxWidth().height(140.dp),
+                range = state.range,
             )
 
             Spacer(Modifier.height(20.dp))
