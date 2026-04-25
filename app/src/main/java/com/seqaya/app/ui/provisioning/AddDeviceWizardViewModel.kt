@@ -110,6 +110,9 @@ class AddDeviceWizardViewModel @Inject constructor(
     fun advanceToWifi() {
         val selected = _ui.value.selectedPlant ?: return
         _ui.update { it.copy(step = Step.Wifi, error = null) }
+        // Warm the scan cache so the picker has fresh results when opened.
+        // No-op if location permission isn't granted yet.
+        wifiProvider.triggerScan()
         viewModelScope.launch {
             val prefilled = withTimeoutOrNull(1_500) { wifiProvider.currentSsid.firstOrNull { it != null } }
             _ui.update {
@@ -165,6 +168,9 @@ class AddDeviceWizardViewModel @Inject constructor(
      */
     fun onLocationPermissionGranted() {
         if (_ui.value.step != Step.Wifi) return
+        // Permission was just granted, so any earlier triggerScan() in
+        // advanceToWifi() was a no-op. Fire one now so the cache has data.
+        wifiProvider.triggerScan()
         if (pickerPendingAfterPermission) {
             pickerPendingAfterPermission = false
             openNetworkPicker()

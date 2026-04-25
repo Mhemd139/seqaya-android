@@ -11,6 +11,7 @@ import android.net.wifi.ScanResult
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -82,49 +83,95 @@ class CurrentWifiProvider @Inject constructor(
 
     @RequiresApi(Build.VERSION_CODES.S)
     private fun extractSsidFromCaps(caps: NetworkCapabilities): String? {
-        if (!hasLocationPermission) return null
-        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
-        val raw = (caps.transportInfo as? WifiInfo)?.ssid ?: return null
-        if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
+        if (!hasLocationPermission) {
+            Log.d(TAG, "extractSsidFromCaps: no location permission")
+            return null
+        }
+        if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+            Log.d(TAG, "extractSsidFromCaps: no Wi-Fi transport on default network")
+            return null
+        }
+        val raw = (caps.transportInfo as? WifiInfo)?.ssid
+        Log.d(TAG, "extractSsidFromCaps: raw='$raw'")
+        if (raw == null || raw.isEmpty() || raw == UNKNOWN_SSID) return null
         return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
     }
 
     @Suppress("DEPRECATION")
     private fun readSsidLegacy(): String? {
-        if (!hasLocationPermission) return null
-        val raw = wifiManager?.connectionInfo?.ssid ?: return null
-        if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
+        if (!hasLocationPermission) {
+            Log.d(TAG, "readSsidLegacy: no location permission")
+            return null
+        }
+        val raw = wifiManager?.connectionInfo?.ssid
+        Log.d(TAG, "readSsidLegacy: raw='$raw'")
+        if (raw == null || raw.isEmpty() || raw == UNKNOWN_SSID) return null
         return raw.removeSurrounding("\"").takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * Kicks off a Wi-Fi scan in the background. Fire-and-forget — results land
+     * in the system cache asynchronously and become readable via [scanNetworks].
+     *
+     * Call this when entering the Wi-Fi step so by the time the user opens the
+     * picker, results are warm. `startScan()` is throttled to 4 calls / 2 min
+     * for foreground apps; we only call it on step entry + picker open, well
+     * within the limit.
+     */
+    @SuppressLint("MissingPermission")
+    @Suppress("DEPRECATION")
+    fun triggerScan() {
+        if (!hasLocationPermission) return
+        runCatching { wifiManager?.startScan() }.onFailure {
+            Log.w(TAG, "startScan() failed", it)
+        }
     }
 
     /**
      * Snapshot of all visible Wi-Fi networks (both bands), sorted by signal.
      *
-     * Returns 5 GHz networks too — the wizard's picker UI needs them so it can
-     * disable them with a "5 GHz, won't work" label rather than hiding them
-     * silently and leaving the user wondering where their network went.
+     * Triggers a fresh scan on every call (rate-limited by the OS), then reads
+     * whatever's currently in the system cache. Most of the time the cache has
+     * results from the previous OS-level scan; calling [triggerScan] once on
+     * Wi-Fi step entry warms it for picker open.
      *
-     * Returns empty list if location permission is denied or the scan fails.
+     * Returns 5 GHz networks too — the picker UI needs them so it can disable
+     * them with a "5 GHz, won't work" label rather than hiding silently.
      */
     @SuppressLint("MissingPermission")
     @Suppress("DEPRECATION")
     fun scanNetworks(): List<WifiNetwork> {
-        if (!hasLocationPermission) return emptyList()
-        val mgr = wifiManager ?: return emptyList()
-        return runCatching {
-            mgr.scanResults
-                .filter { !it.SSID.isNullOrBlank() }
-                // Many home routers broadcast the same SSID on both bands. Prefer
-                // the 2.4 GHz variant when collapsing duplicates so the picker
-                // doesn't disable a network the device could actually join.
-                .groupBy { it.SSID }
-                .map { (_, group) ->
-                    group.firstOrNull { it.frequency in TWO_POINT_FOUR_GHZ_RANGE }
-                        ?: group.maxBy { it.level }
-                }
-                .sortedByDescending { it.level }
-                .map { it.toWifiNetwork() }
-        }.getOrDefault(emptyList())
+        if (!hasLocationPermission) {
+            Log.d(TAG, "scanNetworks: no location permission")
+            return emptyList()
+        }
+        val mgr = wifiManager
+        if (mgr == null) {
+            Log.d(TAG, "scanNetworks: WifiManager unavailable")
+            return emptyList()
+        }
+        // Kick off a fresh scan so the next picker open has fresh data. The
+        // current call still reads whatever's in cache from the previous scan.
+        val scanStarted = runCatching { mgr.startScan() }.onFailure {
+            Log.w(TAG, "startScan() failed", it)
+        }.getOrDefault(false)
+        val results = runCatching { mgr.scanResults }.getOrElse {
+            Log.w(TAG, "scanResults read failed", it)
+            return emptyList()
+        }
+        Log.d(TAG, "scanNetworks: startScan=$scanStarted, raw count=${results.size}")
+        return results
+            .filter { !it.SSID.isNullOrBlank() }
+            // Many home routers broadcast the same SSID on both bands. Prefer
+            // the 2.4 GHz variant when collapsing duplicates so the picker
+            // doesn't disable a network the device could actually join.
+            .groupBy { it.SSID }
+            .map { (_, group) ->
+                group.firstOrNull { it.frequency in TWO_POINT_FOUR_GHZ_RANGE }
+                    ?: group.maxBy { it.level }
+            }
+            .sortedByDescending { it.level }
+            .map { it.toWifiNetwork() }
     }
 
     @Suppress("DEPRECATION")
@@ -135,6 +182,7 @@ class CurrentWifiProvider @Inject constructor(
     )
 
     private companion object {
+        const val TAG = "CurrentWifiProvider"
         const val UNKNOWN_SSID = "<unknown ssid>"
         const val SIGNAL_BAR_COUNT = 4
         val TWO_POINT_FOUR_GHZ_RANGE = 2400..2500
