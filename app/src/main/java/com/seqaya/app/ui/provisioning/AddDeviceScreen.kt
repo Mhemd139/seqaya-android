@@ -1,10 +1,7 @@
 package com.seqaya.app.ui.provisioning
 
 import android.Manifest
-import android.content.Intent
-import android.provider.Settings
-import androidx.activity.OnBackPressedCallback
-import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -61,54 +58,16 @@ fun AddDeviceScreen(
         if (granted) viewModel.onLocationPermissionGranted()
     }
 
-    // Launch system Settings without expecting a result. ACTION_LOCATION_SOURCE_SETTINGS
-    // doesn't deliver a result on back. We re-check the toggle in a lifecycle observer
-    // tied to ON_START so the banner clears as soon as we're foregrounded again.
-    val settingsLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult(),
-    ) {
-        viewModel.refreshLocationServices()
-    }
-
-    // Lifecycle-scoped re-check on resume. Belt-and-suspenders to cover the case where
-    // settingsLauncher's result callback never fires (Settings doesn't setResult/finish
-    // for ACTION_LOCATION_SOURCE_SETTINGS — confirmed via logs).
+    // The OS Location toggle is changed via Quick Settings (notification panel),
+    // not from inside the app. We auto-detect when the user comes back foreground
+    // by observing ON_RESUME and re-checking the system flag.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_START) viewModel.refreshLocationServices()
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshLocationServices()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    // Explicit OnBackPressedCallback wired through the dispatcher rather than Compose's
-    // BackHandler. After returning from system Settings on Samsung One UI, BackHandler
-    // can lose its registration — confirmed in logs: setTopOnBackInvokedCallback never
-    // points back at our callback after Settings dismisses, so the next system back
-    // bypasses our cancel() and the nav graph pops directly to Home. Re-installing on
-    // every ON_RESUME avoids the gap.
-    val backDispatcherOwner = LocalOnBackPressedDispatcherOwner.current
-    DisposableEffect(lifecycleOwner, backDispatcherOwner) {
-        val callback = object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                viewModel.cancel()
-            }
-        }
-        val resumeObserver = LifecycleEventObserver { _, event ->
-            // Re-add on each ON_RESUME because the dispatcher may have been clobbered
-            // by the system Settings activity while we were backgrounded.
-            if (event == Lifecycle.Event.ON_RESUME) {
-                callback.remove()
-                backDispatcherOwner?.onBackPressedDispatcher?.addCallback(lifecycleOwner, callback)
-            }
-        }
-        backDispatcherOwner?.onBackPressedDispatcher?.addCallback(lifecycleOwner, callback)
-        lifecycleOwner.lifecycle.addObserver(resumeObserver)
-        onDispose {
-            callback.remove()
-            lifecycleOwner.lifecycle.removeObserver(resumeObserver)
-        }
     }
 
     LaunchedEffect(Unit) {
@@ -120,6 +79,10 @@ fun AddDeviceScreen(
                     locationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             }
         }
+    }
+
+    BackHandler {
+        viewModel.cancel()
     }
 
     Column(
@@ -161,11 +124,6 @@ fun AddDeviceScreen(
                     onOpenPicker = viewModel::openNetworkPicker,
                     onClosePicker = viewModel::closeNetworkPicker,
                     onPickNetwork = viewModel::selectNetworkFromPicker,
-                    onOpenLocationSettings = {
-                        runCatching {
-                            settingsLauncher.launch(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-                        }
-                    },
                     onNext = viewModel::advanceToTap,
                     error = state.error,
                 )

@@ -62,7 +62,6 @@ fun WifiStep(
     onOpenPicker: () -> Unit,
     onClosePicker: () -> Unit,
     onPickNetwork: (String) -> Unit,
-    onOpenLocationSettings: () -> Unit,
     onNext: () -> Unit,
     error: String?,
 ) {
@@ -84,7 +83,7 @@ fun WifiStep(
         Spacer(Modifier.height(28.dp))
 
         if (locationServicesOff) {
-            LocationServicesBanner(onOpenSettings = onOpenLocationSettings)
+            LocationServicesBanner()
             Spacer(Modifier.height(20.dp))
         }
 
@@ -195,9 +194,14 @@ fun WifiStep(
  * Banner shown when the OS Location toggle is off. Without it, every Wi-Fi
  * read returns redacted data (`<unknown ssid>`) regardless of permission grants —
  * Android's privacy contract, not something we can read around.
+ *
+ * No deep-link button: launching Settings via Intent puts the wizard's nav entry
+ * in a state where returning pops to Home on Samsung One UI. Users open Quick
+ * Settings (swipe down twice) and toggle Location from there — no app round-trip,
+ * no nav stack disturbance. Wizard auto-detects when they come back.
  */
 @Composable
-private fun LocationServicesBanner(onOpenSettings: () -> Unit) {
+private fun LocationServicesBanner() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -211,22 +215,11 @@ private fun LocationServicesBanner(onOpenSettings: () -> Unit) {
             style = Seqaya.type.body.copy(fontWeight = FontWeight.SemiBold),
             color = Seqaya.colors.accentBrownInk,
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         Text(
-            text = "Android requires the system Location toggle to be on so apps can read the Wi-Fi name. We don't track your location.",
-            style = Seqaya.type.body.copy(fontSize = 13.sp),
+            text = "Swipe down from the top of your screen, then tap Location to turn it on. We don't track your location — Android just requires this to read the Wi-Fi name.",
+            style = Seqaya.type.body.copy(fontSize = 13.sp, lineHeight = 18.sp),
             color = Seqaya.colors.accentBrownInk,
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            text = "Open Location settings",
-            style = Seqaya.type.caption.copy(fontWeight = FontWeight.Medium),
-            color = Seqaya.colors.accentBrownInk,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable(onClick = onOpenSettings)
-                .semantics { contentDescription = "Open system Location settings" }
-                .padding(horizontal = 10.dp, vertical = 6.dp),
         )
     }
 }
