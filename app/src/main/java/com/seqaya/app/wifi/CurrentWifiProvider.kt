@@ -38,13 +38,18 @@ class CurrentWifiProvider @Inject constructor(
     @SuppressLint("MissingPermission")
     val currentSsid: Flow<String?> = callbackFlow {
         val emit = { trySend(readSsid()) }
-        val callback = object : ConnectivityManager.NetworkCallback(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-                FLAG_INCLUDE_LOCATION_INFO else 0
-        ) {
-            override fun onAvailable(network: Network) { emit() }
-            override fun onLost(network: Network) { emit() }
-            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { emit() }
+        val callback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            object : ConnectivityManager.NetworkCallback(FLAG_INCLUDE_LOCATION_INFO) {
+                override fun onAvailable(network: Network) { emit() }
+                override fun onLost(network: Network) { emit() }
+                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { emit() }
+            }
+        } else {
+            object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) { emit() }
+                override fun onLost(network: Network) { emit() }
+                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { emit() }
+            }
         }
         val request = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
