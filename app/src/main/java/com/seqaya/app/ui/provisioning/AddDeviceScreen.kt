@@ -27,20 +27,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.seqaya.app.ui.theme.Seqaya
 
@@ -51,7 +46,6 @@ fun AddDeviceScreen(
     viewModel: AddDeviceWizardViewModel = hiltViewModel(),
 ) {
     val state by viewModel.ui.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
     // Real launcher for ACCESS_FINE_LOCATION — the VM emits RequestLocationPermission when
     // it enters the Wi-Fi step and can't prefill the SSID because the permission is denied.
@@ -62,16 +56,15 @@ fun AddDeviceScreen(
         if (granted) viewModel.onLocationPermissionGranted()
     }
 
-    // OS Location toggle is controlled in Settings, not via permission dialog. When
-    // the user comes back from Settings (lifecycle ON_RESUME) we re-check the toggle
-    // and clear the banner / retry SSID prefill if they enabled it.
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshLocationServices()
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    // Launching system Settings via StartActivityForResult instead of a plain
+    // startActivity + lifecycle observer. The result callback fires deterministically
+    // when Settings closes, with no chance of a stray back-press leaking into our
+    // BackHandler and cancelling the wizard (which happened with the lifecycle
+    // observer approach on Samsung One UI).
+    val settingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) {
+        viewModel.refreshLocationServices()
     }
 
     LaunchedEffect(Unit) {
@@ -130,11 +123,8 @@ fun AddDeviceScreen(
                     onClosePicker = viewModel::closeNetworkPicker,
                     onPickNetwork = viewModel::selectNetworkFromPicker,
                     onOpenLocationSettings = {
-                        // Launch Settings in our own task so swipe-back returns to the
-                        // wizard, not to Home. Using FLAG_ACTIVITY_NEW_TASK pops us out
-                        // of the wizard's back-stack on some OEMs (Samsung in particular).
                         runCatching {
-                            context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                            settingsLauncher.launch(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                         }
                     },
                     onNext = viewModel::advanceToTap,
