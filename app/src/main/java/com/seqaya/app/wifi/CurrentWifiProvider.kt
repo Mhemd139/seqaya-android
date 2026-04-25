@@ -25,7 +25,7 @@ import javax.inject.Singleton
 class CurrentWifiProvider @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
-    private val cm = context.getSystemService(ConnectivityManager::class.java)
+    private val cm: ConnectivityManager? = context.getSystemService(ConnectivityManager::class.java)
 
     @Suppress("DEPRECATION")
     private val wifiManager: WifiManager? = context.applicationContext
@@ -55,9 +55,14 @@ class CurrentWifiProvider @Inject constructor(
         val request = NetworkRequest.Builder()
             .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
             .build()
-        cm.registerNetworkCallback(request, callback)
-        emit()
-        awaitClose { cm.unregisterNetworkCallback(callback) }
+        if (cm != null) {
+            cm.registerNetworkCallback(request, callback)
+            emit()
+            awaitClose { cm.unregisterNetworkCallback(callback) }
+        } else {
+            emit()
+            awaitClose {}
+        }
     }.distinctUntilChanged()
 
     @SuppressLint("MissingPermission")
@@ -69,7 +74,7 @@ class CurrentWifiProvider @Inject constructor(
 
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun readSsidModern(): String? {
-        val caps = cm.getNetworkCapabilities(cm.activeNetwork ?: return null) ?: return null
+        val caps = cm?.getNetworkCapabilities(cm.activeNetwork ?: return null) ?: return null
         if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
         val raw = (caps.transportInfo as? WifiInfo)?.ssid ?: return null
         if (raw.isEmpty() || raw == UNKNOWN_SSID) return null
