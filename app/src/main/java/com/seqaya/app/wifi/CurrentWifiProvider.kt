@@ -2,7 +2,10 @@ package com.seqaya.app.wifi
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.net.ConnectivityManager
@@ -68,6 +71,30 @@ class CurrentWifiProvider @Inject constructor(
                 ?: return false
             return LocationManagerCompat.isLocationEnabled(lm)
         }
+
+    /**
+     * Reactive stream of [isLocationServicesEnabled]. Emits the current value on
+     * subscription, then re-emits whenever the OS Location toggle changes — even
+     * if the user flipped it from Quick Settings without leaving our app. Backed
+     * by [LocationManager.MODE_CHANGED_ACTION] which the framework broadcasts the
+     * instant the master toggle moves.
+     */
+    val locationServicesEnabled: Flow<Boolean> = callbackFlow {
+        trySend(isLocationServicesEnabled)
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                trySend(isLocationServicesEnabled)
+            }
+        }
+        val filter = IntentFilter(LocationManager.MODE_CHANGED_ACTION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            context.registerReceiver(receiver, filter)
+        }
+        awaitClose { runCatching { context.unregisterReceiver(receiver) } }
+    }.distinctUntilChanged()
 
     @SuppressLint("MissingPermission")
     val currentSsid: Flow<String?> = callbackFlow {
