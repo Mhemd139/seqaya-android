@@ -3,6 +3,7 @@ package com.seqaya.app.ui.provisioning
 import android.Manifest
 import android.content.Intent
 import android.provider.Settings
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -64,14 +65,20 @@ fun AddDeviceScreen(
     val settingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
     ) {
+        Log.d("AddDeviceScreen", "settingsLauncher RESULT fired")
         viewModel.refreshLocationServices()
     }
 
     LaunchedEffect(Unit) {
+        Log.d("AddDeviceScreen", "AddDeviceScreen composed (event collector started)")
         viewModel.events.collect { ev ->
+            Log.d("AddDeviceScreen", "EVENT: $ev")
             when (ev) {
                 is AddDeviceEvent.Finished -> onFinish(ev.deviceSerial, ev.nickname)
-                AddDeviceEvent.Cancelled -> onCancel()
+                AddDeviceEvent.Cancelled -> {
+                    Log.d("AddDeviceScreen", "Cancelled -> onCancel() (POPPING TO HOME)")
+                    onCancel()
+                }
                 AddDeviceEvent.RequestLocationPermission ->
                     locationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             }
@@ -79,7 +86,7 @@ fun AddDeviceScreen(
     }
 
     BackHandler {
-        // Always route back through VM so the session is dismissed cleanly.
+        Log.d("AddDeviceScreen", "BackHandler FIRED -> viewModel.cancel()")
         viewModel.cancel()
     }
 
@@ -123,8 +130,11 @@ fun AddDeviceScreen(
                     onClosePicker = viewModel::closeNetworkPicker,
                     onPickNetwork = viewModel::selectNetworkFromPicker,
                     onOpenLocationSettings = {
+                        Log.d("AddDeviceScreen", "Open Location Settings tapped, launching")
                         runCatching {
                             settingsLauncher.launch(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                        }.onFailure {
+                            Log.e("AddDeviceScreen", "Settings launch failed", it)
                         }
                     },
                     onNext = viewModel::advanceToTap,
