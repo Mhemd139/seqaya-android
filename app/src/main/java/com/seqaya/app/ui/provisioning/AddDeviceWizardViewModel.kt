@@ -114,7 +114,6 @@ class AddDeviceWizardViewModel @Inject constructor(
                 _events.send(AddDeviceEvent.RequestLocationPermission)
             }
         }
-        @Suppress("UNUSED_VARIABLE") val _ignore = selected
     }
 
     fun setSsid(value: String) = _ui.update { it.copy(ssid = value) }
